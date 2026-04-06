@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,\n                       c.teacher_id, u.real_name AS teacher_name,\n                       c.status AS \"status: _\", c.created_at, c.updated_at,\n                       c.vote_count\n                FROM course_enrollments e\n                JOIN courses c ON c.id = e.course_id\n                LEFT JOIN users u ON u.id = c.teacher_id\n                WHERE e.user_id = $1\n                  AND (e.enrolled_at, e.id) < ($2, $3)\n                ORDER BY e.enrolled_at DESC, e.id DESC\n                LIMIT $4\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "cover_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "major_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "teacher_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "teacher_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "course_status",
+            "kind": {
+              "Enum": [
+                "draft",
+                "published",
+                "archived"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "vote_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0d6c0a01f12ade67f2c19edcaf98cb459bbedceee87959770afd16b8db1647d6"
+}

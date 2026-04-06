@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT course_id\n        FROM course_votes\n        WHERE user_id = $1\n          AND course_id = ANY($2::uuid[])\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "course_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4e2b1c3d250ffabf7911962eb5394bbe13fd18084a3d109cccd3dd289310bc23"
+}

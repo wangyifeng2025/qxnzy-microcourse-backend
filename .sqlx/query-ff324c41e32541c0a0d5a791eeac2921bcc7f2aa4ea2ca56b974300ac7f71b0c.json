@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE video_transcodes\n        SET status = 'failed'::transcode_status, updated_at = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ff324c41e32541c0a0d5a791eeac2921bcc7f2aa4ea2ca56b974300ac7f71b0c"
+}

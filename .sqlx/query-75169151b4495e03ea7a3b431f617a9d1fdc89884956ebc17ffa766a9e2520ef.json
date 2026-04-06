@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM course_enrollments WHERE user_id = $1 AND course_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75169151b4495e03ea7a3b431f617a9d1fdc89884956ebc17ffa766a9e2520ef"
+}

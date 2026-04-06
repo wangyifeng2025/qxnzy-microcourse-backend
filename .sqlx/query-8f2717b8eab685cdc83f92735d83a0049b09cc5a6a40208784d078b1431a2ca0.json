@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, user_id, course_id, enrolled_at\n        FROM course_enrollments\n        WHERE user_id = $1 AND course_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "course_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "enrolled_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8f2717b8eab685cdc83f92735d83a0049b09cc5a6a40208784d078b1431a2ca0"
+}

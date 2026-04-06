@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE videos SET status = $2, updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "video_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "processing",
+                "ready",
+                "failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca00e14750e3e85ea25639a222da67f72d2565db9103607edd88def0ac3d2e64"
+}

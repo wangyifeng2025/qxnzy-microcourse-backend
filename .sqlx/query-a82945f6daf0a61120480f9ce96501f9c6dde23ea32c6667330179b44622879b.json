@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE courses SET vote_count = GREATEST(0, vote_count - 1) WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a82945f6daf0a61120480f9ce96501f9c6dde23ea32c6667330179b44622879b"
+}

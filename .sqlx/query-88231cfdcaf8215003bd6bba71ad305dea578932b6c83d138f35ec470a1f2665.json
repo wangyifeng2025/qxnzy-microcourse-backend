@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO course_enrollments (id, user_id, course_id, enrolled_at)\n        VALUES (gen_random_uuid(), $1, $2, NOW())\n        ON CONFLICT (user_id, course_id) DO UPDATE\n            SET enrolled_at = course_enrollments.enrolled_at\n        RETURNING id, user_id, course_id, enrolled_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "course_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "enrolled_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "88231cfdcaf8215003bd6bba71ad305dea578932b6c83d138f35ec470a1f2665"
+}

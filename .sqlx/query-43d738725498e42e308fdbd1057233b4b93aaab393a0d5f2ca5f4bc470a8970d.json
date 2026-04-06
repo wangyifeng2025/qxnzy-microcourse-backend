@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO course_votes (user_id, course_id)\n        VALUES ($1, $2)\n        ON CONFLICT (user_id, course_id) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "43d738725498e42e308fdbd1057233b4b93aaab393a0d5f2ca5f4bc470a8970d"
+}

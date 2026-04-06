@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE video_transcodes\n        SET status = 'done'::transcode_status,\n            playlist_url = $2,\n            file_size    = $3,\n            updated_at   = NOW()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6abe311a2a9a86f8dcec3c59d035e36b94ace2d4ea9962d093500848bca1c24b"
+}

@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,\n               c.teacher_id, u.real_name AS teacher_name,\n               c.status AS \"status: _\", c.created_at, c.updated_at,\n               c.vote_count\n        FROM courses c\n        LEFT JOIN users u ON u.id = c.teacher_id\n        WHERE c.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "cover_image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "major_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "teacher_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "teacher_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "course_status",
+            "kind": {
+              "Enum": [
+                "draft",
+                "published",
+                "archived"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "vote_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "04f50669242fb4c41c7119d58d77db76193634d65ccf6762d1b0114256ad5945"
+}
