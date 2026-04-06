@@ -1,0 +1,19 @@
+# 构建产物与版本控制
+target/
+.git/
+.gitignore
+
+# 本地密钥（切勿打进镜像）
+.env
+.env.*
+
+# IDE / 杂项
+.cursor/
+.idea/
+.vscode/
+**/.DS_Store
+
+# 文档与本地测试（不参与编译）
+docs/
+rest-test/
+*.http

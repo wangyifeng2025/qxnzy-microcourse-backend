@@ -1,0 +1,7 @@
+/target
+/.sqlx
+/.cursor
+/.idea
+/.vscode
+/.DS_Store
+.env

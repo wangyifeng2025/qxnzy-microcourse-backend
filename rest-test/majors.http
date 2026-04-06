@@ -1,0 +1,106 @@
+# ============================================
+# 专业 API
+# Base：http://localhost:8080
+#
+# GET  /api/majors, GET /api/majors/:id — 教师或管理员（须 Bearer）
+# POST /api/majors, PUT/DELETE /api/majors/:id — 仅管理员
+#
+# 列表与详情返回 MajorWithStats（含 course_count, enrolled_learner_count, total_video_views）
+# ============================================
+@base = http://localhost:8080
+@token = REPLACE_WITH_TEACHER_OR_ADMIN_JWT
+
+# --------------------------------------------
+# GET /api/majors?page_size=&cursor_*=
+# 响应 200：PagedList<MajorWithStats>
+# --------------------------------------------
+
+###
+# @name 获取专业列表（含统计）
+GET {{base}}/api/majors?page_size=20
+Authorization: Bearer {{token}}
+
+# 响应示例 200：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor_created_at": null,
+#   "next_cursor_id": null,
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "name": "计算机科学",
+#       "code": "CS",
+#       "description": "...",
+#       "sort_order": 1,
+#       "created_at": "...",
+#       "course_count": 5,
+#       "enrolled_learner_count": 120,
+#       "total_video_views": 3400
+#     }
+#   ]
+# }
+
+###
+# @name 获取专业列表（游标下一页）
+GET {{base}}/api/majors?page_size=20&cursor_created_at=2024-01-01T00:00:00Z&cursor_id=REPLACE_ID
+Authorization: Bearer {{token}}
+
+###
+# @name 获取专业详情（含统计）
+GET {{base}}/api/majors/REPLACE_WITH_MAJOR_ID
+Authorization: Bearer {{token}}
+
+# 响应示例 200：单条 MajorWithStats（结构同 items[] 元素）
+
+# --------------------------------------------
+# POST /api/majors — CreateMajor
+# 响应 201：Major（不含统计字段，与写库 RETURNING 一致）
+# --------------------------------------------
+
+###
+# @name 创建专业（管理员）
+POST {{base}}/api/majors
+Content-Type: application/json
+Authorization: Bearer REPLACE_WITH_ADMIN_JWT
+
+{
+    "name": "计算机科学",
+    "code": "CS",
+    "description": "计算机科学与技术专业",
+    "sort_order": 1
+}
+
+# 响应示例 201：
+# {
+#   "id": "uuid",
+#   "name": "计算机科学",
+#   "code": "CS",
+#   "description": "计算机科学与技术专业",
+#   "sort_order": 1,
+#   "created_at": "..."
+# }
+
+# --------------------------------------------
+# PUT /api/majors/:id — UpdateMajor（字段均可选）
+# 响应 200：Major
+# --------------------------------------------
+
+###
+# @name 更新专业（管理员）
+PUT {{base}}/api/majors/REPLACE_WITH_MAJOR_ID
+Content-Type: application/json
+Authorization: Bearer REPLACE_WITH_ADMIN_JWT
+
+{
+    "name": "计算机科学与技术",
+    "description": "更新后的专业描述",
+    "sort_order": 2
+}
+
+###
+# @name 删除专业（管理员）
+DELETE {{base}}/api/majors/REPLACE_WITH_MAJOR_ID
+Authorization: Bearer REPLACE_WITH_ADMIN_JWT
+
+# 响应 204 No Content

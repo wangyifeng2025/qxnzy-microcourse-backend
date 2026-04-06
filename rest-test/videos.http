@@ -1,0 +1,247 @@
+### ============================================================
+### 视频上传全流程测试
+### 架构：前端直传 MinIO + PostgreSQL 任务队列 + Tokio FFmpeg
+### Base：http://localhost:8080（与 src/main.rs 监听端口一致）
+### 路由：POST /api/chapters/:chapter_id/videos、POST /api/videos/:id/upload-url 等
+### ============================================================
+
+@base = http://localhost:8080
+@token = {{login.response.body.token}}
+
+# 请先通过 auth.http 登录获取 token，并替换下方变量
+@teacher_token = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2MjJkYmZkNC0xN2VhLTQyMTMtYjQ0YS03N2U4MDFlODQ4ZjEiLCJyb2xlIjoiVGVhY2hlciIsImV4cCI6MTc3MzE0NjEzOH0.QSZX8-u9xyW5T6XSHExaWAuQreuciavudWUOChmpU-I
+@chapter_id = 6087b866-ff49-4ed5-92b6-9c4b68aaa9c2
+@video_id = 63ca7934-d1b5-4629-974d-bab36502f3fc
+@upload_url = <步骤 2 返回后填入>
+@object_key = <步骤 2 返回后填入>
+
+### ============================================================
+### 步骤 0：登录（教师/管理员账号）
+### ============================================================
+
+# @name login
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "teacher01",
+  "password": "123456"
+}
+
+### ============================================================
+### 步骤 1：在章节下创建视频记录（尚未上传文件）
+### ============================================================
+
+POST {{base}}/api/chapters/{{chapter_id}}/videos
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "title": "第一节：Rust 所有权介绍",
+  "description": "讲解 Rust 的所有权、借用和生命周期概念",
+  "sort_order": 1
+}
+
+### 预期响应（201 Created）Video：
+### {
+###   "id": "uuid",
+###   "chapter_id": "uuid",
+###   "title": "第一节：Rust 所有权介绍",
+###   "description": "...",
+###   "duration": 0,
+###   "original_url": null,
+###   "cover_url": null,
+###   "status": "pending",
+###   "sort_order": 1,
+###   "view_count": 0,
+###   "created_at": "...",
+###   "updated_at": "..."
+### }
+
+### ============================================================
+### 步骤 2：申请 MinIO 预签名上传 URL
+### （填入步骤 1 返回的 video_id）
+### ============================================================
+
+# @name get_upload_url
+POST {{base}}/api/videos/{{video_id}}/upload-url
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "filename": "sample.mp4"
+}
+
+### 预期响应（200 OK）：
+### {
+###   "upload_url": "http://localhost:9000/videos/raw/.../rust_ownership_intro.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...&X-Amz-Signature=...",
+###   "object_key": "raw/VIDEO_ID/rust_ownership_intro.mp4",
+###   "expires_in": 3600
+### }
+
+### ============================================================
+### 步骤 2b：模拟前端直传文件到 MinIO（预签名 PUT）
+###
+### 原理：
+###   - URL 中已内嵌完整签名参数（X-Amz-*），无需 Authorization 头
+###   - Content-Type 须与 PUT body 的实际类型一致
+###   - 文件通过 `< 路径` 语法以二进制流读取，模拟 browser fetch/XHR
+###
+### 准备：在 rest-test/ 目录下放一个测试视频文件
+###   cp /path/to/any.mp4 rest-test/sample.mp4
+### ============================================================
+
+PUT {{get_upload_url.response.body.upload_url}}
+Content-Type: video/mp4
+
+< ./test-mp4/sample.mp4
+
+### 预期响应：HTTP 200（MinIO 直接返回，Body 为空）
+### MinIO 不返回 JSON，200 即代表上传成功。
+###
+### 上传完成后，可在 MinIO Console（http://localhost:9001）
+### 的 videos bucket → raw/{video_id}/ 路径下看到该文件。
+
+### ============================================================
+### 步骤 3：确认上传完成，触发转码任务入队
+### （上传成功后调用）
+### ============================================================
+
+POST {{base}}/api/videos/{{video_id}}/confirm-upload
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "object_key": "{{get_upload_url.response.body.object_key}}",
+  "duration": 320
+}
+
+### 预期响应（200 OK）：
+### {
+###   "message": "上传已确认，转码任务已创建",
+###   "task_count": 4
+### }
+###
+### 此时数据库中会有 4 条 video_transcodes 记录（1080p/720p/480p/360p）
+### 后台 Worker 会在 5s 内开始处理
+
+### ============================================================
+### 步骤 4：轮询转码进度
+### ============================================================
+
+GET {{base}}/api/videos/{{video_id}}/transcodes
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "video_id": "...",
+###   "video_status": "processing",  ← 转码中
+###   "transcodes": [
+###     { "resolution": "1080p", "status": "processing", "playlist_url": null },
+###     { "resolution": "720p",  "status": "pending",    "playlist_url": null },
+###     { "resolution": "480p",  "status": "pending",    "playlist_url": null },
+###     { "resolution": "360p",  "status": "pending",    "playlist_url": null }
+###   ]
+### }
+###
+### 全部完成后：
+### {
+###   "video_status": "ready",
+###   "transcodes": [
+###     { "resolution": "1080p", "status": "done", "playlist_url": "hls/.../1080p/playlist.m3u8" },
+###     ...
+###   ]
+### }
+
+### ============================================================
+### HLS 播放：通过动态 URL 签名获取播放地址
+### ============================================================
+
+### 先用登录 Token 换取一个短效播放 URL（内含 hls_token）
+### 默认分辨率 720p，默认 10 分钟有效期
+# @name create_hls_url
+POST {{base}}/api/videos/{{video_id}}/hls-url
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "resolution": "720p",
+  "ttl_seconds": 600
+}
+
+### 预期响应（200 OK）：
+### {
+###   "playlist_url": "/api/videos/<video_id>/hls/720p/playlist.m3u8?hls_token=eyJhbGciOi...",
+###   "expires_at": 1710000000
+### }
+
+###
+
+### 使用返回的 playlist_url 直接访问 m3u8（无需再带 Authorization 头）
+GET {{base}}{{create_hls_url.response.body.playlist_url}}
+
+### 预期响应（200 OK）：
+### Content-Type: application/x-mpegURL
+### m3u8 中的每个分片路径类似：
+### /api/videos/<video_id>/hls/720p/segment_0000.ts?hls_token=eyJhbGciOi...
+### 播放器后续请求所有分片时都会自动携带同一个 hls_token。
+
+###
+
+### ============================================================
+### 前端 hls.js 集成示例（JavaScript）
+### ============================================================
+### 将以下代码嵌入前端页面即可播放（需先引入 hls.js）：
+###
+### <video id="player" controls width="100%"></video>
+### <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+### <script>
+###   const videoId = '{{video_id}}';
+###   const resolution = '720p';
+###   const playlistUrl = '{{create_hls_url.response.body.playlist_url}}';
+###   const src = `http://localhost:8080${playlistUrl}`;
+###
+###   const video = document.getElementById('player');
+###
+###   if (Hls.isSupported()) {
+###     const hls = new Hls();
+###     hls.loadSource(src);
+###     hls.attachMedia(video);
+###   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+###     // Safari / 移动端原生直接使用 URL 即可
+###     video.src = src;
+###   }
+### </script>
+
+### ============================================================
+### 其他：视频管理接口
+### ============================================================
+
+### 获取视频详情（含转码列表）
+GET {{base}}/api/videos/{{video_id}}
+Authorization: Bearer {{teacher_token}}
+
+###
+
+### 列出章节下所有视频
+GET {{base}}/api/chapters/{{chapter_id}}/videos
+
+
+###
+
+### 更新视频基本信息
+PUT {{base}}/api/videos/{{video_id}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "title": "第一节：Rust 所有权介绍（更新）",
+  "description": "全面讲解 Rust 的所有权、借用和生命周期",
+  "sort_order": 1
+}
+
+###
+
+### 删除视频（级联删除 video_transcodes）
+DELETE {{base}}/api/videos/{{video_id}}
+Authorization: Bearer {{teacher_token}}

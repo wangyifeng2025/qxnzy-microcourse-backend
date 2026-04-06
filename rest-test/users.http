@@ -1,0 +1,127 @@
+# ============================================
+# 用户 API
+# Base：http://localhost:8080
+# 需 Authorization: Bearer <JWT>（除说明外）
+#
+# GET  /api/users              — 任意已登录用户
+# GET  /api/users/:id          — 本人或管理员
+# PUT  /api/users/:id          — 本人或管理员（is_active 仅管理员可改）
+# POST /api/users              — 仅管理员
+# DELETE /api/users/:id        — 仅管理员
+# ============================================
+@base = http://localhost:8080
+@token = REPLACE_WITH_JWT
+
+# --------------------------------------------
+# GET /api/users?page_size=&cursor_created_at=&cursor_id=
+# 查询参数 PageQuery：page_size 默认 20、最大 100；游标两参数需同时传
+# 响应 200：PagedList<UserProfile>
+# --------------------------------------------
+
+###
+# @name 获取用户列表（游标分页）
+GET {{base}}/api/users?page_size=20
+Authorization: Bearer {{token}}
+
+# 响应示例 200：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor_created_at": null,
+#   "next_cursor_id": null,
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "username": "u1",
+#       "email": "a@b.com",
+#       "role": "Student",
+#       "real_name": "张三",
+#       "avatar_url": null,
+#       "is_active": true,
+#       "major_id": null,
+#       "created_at": "...",
+#       "updated_at": "..."
+#     }
+#   ]
+# }
+
+###
+# @name 获取用户列表（下一页，带游标）
+GET {{base}}/api/users?page_size=20&cursor_created_at=2024-01-01T00:00:00Z&cursor_id=REPLACE_PREV_LAST_UUID
+Authorization: Bearer {{token}}
+
+###
+# @name 获取用户详情
+GET {{base}}/api/users/REPLACE_WITH_USER_ID
+Authorization: Bearer {{token}}
+
+# 响应示例 200：单条 UserProfile（结构同 items[] 元素）
+
+# --------------------------------------------
+# POST /api/users（仅管理员）
+# 请求体 CreateUser：username, email?, password, role, real_name?
+# 响应 201：UserProfile
+# --------------------------------------------
+
+###
+# @name 创建用户（管理员）
+POST {{base}}/api/users
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "username": "newstudent",
+    "email": "newstudent@example.com",
+    "password": "123456",
+    "role": "Student",
+    "real_name": "新学生"
+}
+
+# --------------------------------------------
+# PUT /api/users/:id
+# 请求体 UpdateUser：email?, real_name?, avatar_url?, is_active?, major_id?
+# - is_active：仅管理员
+# - major_id：本人或管理员（学生常用）
+# 响应 200：UserProfile
+# --------------------------------------------
+
+###
+# @name 更新用户信息（本人或管理员）
+PUT {{base}}/api/users/REPLACE_WITH_USER_ID
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "email": "updated@example.com",
+    "real_name": "更新后的名字"
+}
+
+###
+# @name 学生设置所属专业（本人或管理员）
+PUT {{base}}/api/users/REPLACE_WITH_USER_ID
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "major_id": "REPLACE_WITH_MAJOR_UUID"
+}
+
+###
+# @name 禁用账号（仅管理员；禁用后无法登录，旧 Token 失效）
+PUT {{base}}/api/users/REPLACE_WITH_USER_ID
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "is_active": false
+}
+
+# --------------------------------------------
+# DELETE /api/users/:id（仅管理员）
+# 响应 204 No Content
+# --------------------------------------------
+
+###
+# @name 删除用户
+DELETE {{base}}/api/users/REPLACE_WITH_USER_ID
+Authorization: Bearer {{token}}

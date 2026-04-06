@@ -1,0 +1,108 @@
+# ============================================
+# 认证 API（无需登录）
+# Base 与 main.rs 监听端口一致
+# ============================================
+@base = http://localhost:8080
+
+# --------------------------------------------
+# POST /api/auth/register
+# 公开注册接口，角色固定为 Student，不接受 role 字段
+# 请求体 RegisterRequest：username（必填）, password（必填，≥6位）, email?, real_name?
+# 响应 201：UserProfile（与 GET /api/users/:id 结构一致，无 password）
+#
+# 错误响应：
+# 400 Bad Request — 用户名为空 / 密码少于 6 位
+# 409 Conflict   — 用户名或邮箱已存在
+# --------------------------------------------
+
+###
+# @name 用户注册（自动为 Student 角色）
+POST {{base}}/api/auth/register
+Content-Type: application/json
+
+{
+    "username": "testuser001",
+    "email": "test001@example.com",
+    "password": "123456",
+    "real_name": "测试学生"
+}
+
+# 响应示例 201 Created：
+# {
+#   "id": "uuid",
+#   "username": "testuser001",
+#   "email": "test001@example.com",
+#   "role": "student",
+#   "real_name": "测试学生",
+#   "avatar_url": null,
+#   "is_active": true,
+#   "major_id": null,
+#   "created_at": "2026-01-01T00:00:00Z",
+#   "updated_at": "2026-01-01T00:00:00Z"
+# }
+
+# --------------------------------------------
+# POST /api/users（仅管理员）
+# 管理员创建用户，可指定任意角色
+# 请求体 CreateUser：username, password, role（"student"|"teacher"|"admin"）, email?, real_name?
+# 见 users.http
+# --------------------------------------------
+
+# --------------------------------------------
+# 角色修改
+# PUT /api/users/:id（需管理员 Token）
+# 请求体 UpdateUser 中携带 "role": "teacher" 即可升级角色
+# 见 users.http
+# --------------------------------------------
+
+# --------------------------------------------
+# POST /api/auth/login
+# 请求体 LoginRequest：username? 与 email? 二选一 + password（必填）
+# is_active=false 时 401，body 文本「账号已被禁用」
+# 响应 200：LoginResponse
+# --------------------------------------------
+
+###
+# @name 用户登录（用户名 + 密码）
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+    "username": "newuser01",
+    "password": "123456"
+}
+
+# 响应示例 200 OK：
+# {
+#   "token": "eyJ...",
+#   "token_type": "Bearer",
+#   "expires_at": 1770000000,
+#   "user": {
+#     "id": "uuid",
+#     "username": "newuser01",
+#     "email": null,
+#     "role": "Student",
+#     "real_name": null,
+#     "avatar_url": null
+#   }
+# }
+
+###
+# @name 用户登录（邮箱 + 密码）
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "teacher001@example.com",
+    "password": "123456"
+}
+
+###
+# @name 用户登录（管理员）
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+    "username": "admin",
+    "password": "123456"
+}

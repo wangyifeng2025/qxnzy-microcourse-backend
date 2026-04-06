@@ -1,0 +1,9 @@
+pub mod course;
+pub mod enums;
+pub mod interaction;
+pub mod learning;
+pub mod major;
+pub mod pagination;
+pub mod quiz;
+pub mod user;
+pub mod video;

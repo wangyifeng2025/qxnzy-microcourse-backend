@@ -1,0 +1,174 @@
+# ============================================
+# 选课 API
+# Base：http://localhost:8080
+#
+# 所有接口均需 Authorization: Bearer <JWT>（任意已登录用户）
+#
+# GET    /api/courses/enrolled              — 当前用户已选课程列表（游标分页）
+# GET    /api/courses/:course_id/enroll    — 查询当前用户是否已选该课
+# POST   /api/courses/:course_id/enroll   — 选课（仅限已发布课程，幂等）
+# DELETE /api/courses/:course_id/enroll   — 取消选课
+#
+# 注意：选课接口均无请求体，course_id 从路径传入
+# ============================================
+@base = http://localhost:8080
+@token = REPLACE_WITH_JWT
+@course_id = REPLACE_WITH_COURSE_ID
+
+# ============================================
+# GET /api/courses/enrolled
+# 获取当前登录用户的已选课程列表（游标分页）
+# - 按选课时间倒序（最新选的排在前面）
+# - 游标：cursor_created_at 对应选课时间（enrolled_at），cursor_id 对应选课记录 id
+# ============================================
+
+###
+# @name 获取已选课程列表（第一页）
+GET {{base}}/api/courses/enrolled?page_size=20
+Authorization: Bearer {{token}}
+
+# 响应示例 200 OK：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor_created_at": null,
+#   "next_cursor_id": null,
+#   "items": [
+#     {
+#       "id": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+#       "title": "Rust 入门到进阶",
+#       "description": "从零开始学习 Rust 编程语言",
+#       "cover_image_url": "https://minio.example.com/...",
+#       "major_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+#       "teacher_id": "c3d4e5f6-a7b8-9012-cdef-012345678902",
+#       "teacher_name": "张三",
+#       "status": "published",
+#       "created_at": "2026-02-01T08:00:00Z",
+#       "updated_at": "2026-03-01T10:00:00Z"
+#     }
+#   ]
+# }
+# 未选任何课程时 items 为空数组，has_more=false
+
+###
+# @name 获取已选课程列表（翻页，传入游标）
+GET {{base}}/api/courses/enrolled?page_size=20&cursor_created_at=2026-03-01T10:00:00Z&cursor_id=REPLACE_WITH_LAST_ENROLLMENT_ID
+Authorization: Bearer {{token}}
+
+# 响应结构同第一页；has_more=false 时 next_cursor_* 均为 null
+
+# 错误响应：
+# 401 Unauthorized — 未登录或 Token 无效
+
+# ============================================
+# GET /api/courses/:course_id/enroll/count
+# 查询指定课程的选课总人数（任意已登录用户可访问）
+# ============================================
+
+###
+# @name 查询课程选课人数
+GET {{base}}/api/courses/{{course_id}}/enroll/count
+Authorization: Bearer {{token}}
+
+# 响应示例 200 OK：
+# {
+#   "course_id": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+#   "enrollment_count": 42
+# }
+
+# 错误响应：
+# 401 Unauthorized — 未登录或 Token 无效
+# 404 Not Found    — 课程不存在，body: "课程不存在"
+
+# ============================================
+# GET /api/courses/:course_id/enroll
+# 查询当前登录用户对指定课程的选课状态
+# ============================================
+
+###
+# @name 查询选课状态（已选课）
+GET {{base}}/api/courses/{{course_id}}/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 200 OK（已选课）：
+# {
+#   "enrolled": true,
+#   "enrollment": {
+#     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#     "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+#     "course_id": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+#     "enrolled_at": "2026-03-01T08:30:00Z"
+#   }
+# }
+
+###
+# @name 查询选课状态（未选课）
+GET {{base}}/api/courses/{{course_id}}/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 200 OK（未选课）：
+# {
+#   "enrolled": false,
+#   "enrollment": null
+# }
+
+# 错误响应：
+# 401 Unauthorized  — 未登录或 Token 无效
+# 404 Not Found     — 课程不存在，body: "课程不存在"
+
+# ============================================
+# POST /api/courses/:course_id/enroll
+# 当前登录用户对指定课程选课（点击"开始学习"时调用）
+# - 课程必须为 published 状态
+# - 已选过则幂等返回现有记录（不会重复创建）
+# - 无需请求体
+# ============================================
+
+###
+# @name 选课（首次选课）
+POST {{base}}/api/courses/{{course_id}}/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 201 Created（首次选课）：
+# {
+#   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+#   "course_id": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+#   "enrolled_at": "2026-03-29T10:00:00Z"
+# }
+
+###
+# @name 选课（重复选课，幂等）
+POST {{base}}/api/courses/{{course_id}}/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 201 Created（已选过，返回原有记录，enrolled_at 不变）：
+# {
+#   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#   "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+#   "course_id": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+#   "enrolled_at": "2026-03-29T10:00:00Z"
+# }
+
+# 错误响应：
+# 401 Unauthorized        — 未登录或 Token 无效
+# 404 Not Found           — 课程不存在，body: "课程不存在"
+# 422 Unprocessable Entity — 课程未发布，body: "该课程尚未发布，暂不可选课"
+
+# ============================================
+# DELETE /api/courses/:course_id/enroll
+# 当前登录用户取消对指定课程的选课
+# - 无需请求体
+# ============================================
+
+###
+# @name 取消选课
+DELETE {{base}}/api/courses/{{course_id}}/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 204 No Content（取消成功，无响应体）
+
+# 错误响应：
+# 401 Unauthorized — 未登录或 Token 无效
+# 404 Not Found    — 课程不存在，body: "课程不存在"
+# 404 Not Found    — 未选该课程，body: "未找到该选课记录"

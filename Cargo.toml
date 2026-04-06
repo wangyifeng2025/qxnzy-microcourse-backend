@@ -1,0 +1,29 @@
+[package]
+name = "qxnzy-microcourse-backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+tokio = { version = "1.49.0", features = ["full"] }
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+# Database
+sqlx = { version = "0.8.6", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "macros"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+# Environment
+dotenvy = "0.15"
+# Password hashing
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
+jsonwebtoken = "9"
+# Logging
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+rust_decimal = "1.40.0"
+# Object Storage (MinIO/S3)
+aws-sdk-s3 = "1"
+# Temp file management
+tempfile = "3"

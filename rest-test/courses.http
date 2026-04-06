@@ -1,0 +1,230 @@
+# ============================================
+# 课程 API
+# Base：http://localhost:8080
+#
+# GET  /api/courses              — 门户列表，仅 status=published；可选 Bearer，不改变过滤
+# GET  /api/courses/manage       — 教师/管理员；教师看本人全部状态，管理员看全站
+# GET  /api/courses/:id          — 未发布课程需教师本人或管理员 Bearer，否则 404
+# POST/PUT/DELETE /api/courses/* — 教师或管理员（写操作须 Bearer）
+# 封面：申请 upload-url → PUT MinIO → confirm
+# ============================================
+@base = http://localhost:8080
+@token = REPLACE_WITH_JWT
+
+# --------------------------------------------
+# GET /api/courses — PageQuery；响应 PagedList<CourseResponse>
+# --------------------------------------------
+
+###
+# @name 获取课程列表（游标分页，仅已发布）
+GET {{base}}/api/courses?page_size=20
+
+# 响应示例 200：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor_created_at": null,
+#   "next_cursor_id": null,
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "title": "...",
+#       "description": null,
+#       "cover_image_url": "https://...",
+#       "major_id": "uuid",
+#       "teacher_id": "uuid",
+#       "teacher_name": "张老师",
+#       "status": "published",
+#       "created_at": "...",
+#       "updated_at": "..."
+#     }
+#   ]
+# }
+
+###
+# @name 获取课程列表（下一页，带游标）
+GET {{base}}/api/courses?page_size=20&cursor_created_at=2024-01-01T00:00:00Z&cursor_id=REPLACE_PREV_LAST_UUID
+
+###
+# @name 课程管理列表（教师/管理员）
+GET {{base}}/api/courses/manage?page_size=20
+Authorization: Bearer {{token}}
+
+# 响应结构同 PagedList<CourseResponse>，含草稿/归档等全部状态
+
+###
+# @name 获取课程详情
+GET {{base}}/api/courses/REPLACE_WITH_COURSE_ID
+
+# 可选：Authorization: Bearer ...（查看未发布课程时必填且须为教师本人或管理员）
+# 响应 200：单个 CourseResponse
+
+# --------------------------------------------
+# POST /api/courses — CreateCourse：title, description?, cover_image_url?, major_id?
+# 响应 201：CourseResponse
+# --------------------------------------------
+
+###
+# @name 创建课程（教师/管理员）
+POST {{base}}/api/courses
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "title": "Java 实战入门",
+    "description": "课程简介",
+    "cover_image_url": "https://example.com/covers/cover.png",
+    "major_id": "622dbbd4-17ea-4213-b44a-77e801e848f1"
+}
+
+# --------------------------------------------
+# PUT /api/courses/:id — UpdateCourse：title?, description?, cover_image_url?, major_id?, status?
+# status: "draft" | "published" | "archived"
+# 响应 200：CourseResponse
+# --------------------------------------------
+
+###
+# @name 更新课程（课程教师本人/管理员）
+PUT {{base}}/api/courses/REPLACE_WITH_COURSE_ID
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "title": "Rust 后端实战进阶",
+    "description": "更新后的课程简介",
+    "cover_image_url": "https://example.com/covers/v2.png",
+    "major_id": null,
+    "status": "published"
+}
+
+###
+# @name 删除课程（课程教师本人/管理员）
+DELETE {{base}}/api/courses/REPLACE_WITH_COURSE_ID
+Authorization: Bearer {{token}}
+
+# 响应 204 No Content
+
+# --------------------------------------------
+# 封面直传：CourseCoverUploadUrlRequest / CourseCoverConfirmRequest
+# --------------------------------------------
+
+###
+# @name 申请课程封面上传 URL
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/cover/upload-url
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "filename": "cover.png"
+}
+
+# 响应示例 200：CourseCoverUploadUrlResponse
+# {
+#   "upload_url": "https://minio.../presigned-put...",
+#   "object_key": "course-covers/<course_id>/cover.png",
+#   "expires_in": 3600
+# }
+
+###
+# @name 确认课程封面上传（文件已 PUT 到 MinIO）
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/cover/confirm
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "object_key": "course-covers/REPLACE_WITH_COURSE_ID/cover.png"
+}
+
+# 响应示例 200：
+# {
+#   "message": "课程封面上传已确认",
+#   "cover_image_url": "https://...预签名或外链..."
+# }
+
+###
+# @name 删除课程封面
+DELETE {{base}}/api/courses/REPLACE_WITH_COURSE_ID/cover
+Authorization: Bearer {{token}}
+
+# 响应 204 No Content
+
+# ============================================
+# 选课 API
+# GET  /api/courses/:course_id/enroll  — 查询当前用户是否已选该课
+# POST /api/courses/:course_id/enroll  — 选课（仅限已发布课程）
+# DELETE /api/courses/:course_id/enroll — 取消选课
+# ============================================
+
+###
+# @name 查询选课状态
+GET {{base}}/api/courses/REPLACE_WITH_COURSE_ID/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 200：
+# {
+#   "enrolled": true,
+#   "enrollment": {
+#     "id": "uuid",
+#     "user_id": "uuid",
+#     "course_id": "uuid",
+#     "enrolled_at": "2026-01-01T00:00:00Z"
+#   }
+# }
+# 未选课时 enrolled=false，enrollment=null
+
+###
+# @name 选课（点击"开始学习"）
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/enroll
+Authorization: Bearer {{token}}
+
+# 响应示例 201：
+# {
+#   "id": "uuid",
+#   "user_id": "uuid",
+#   "course_id": "uuid",
+#   "enrolled_at": "2026-01-01T00:00:00Z"
+# }
+# 已选过则返回现有记录（幂等）
+
+###
+# @name 取消选课
+DELETE {{base}}/api/courses/REPLACE_WITH_COURSE_ID/enroll
+Authorization: Bearer {{token}}
+
+# 响应 204 No Content
+# 未选课则返回 404
+
+###
+# ============================================================
+# 投票功能测试
+# ============================================================
+
+###
+# @name 学生投票（首次 → voted=true，vote_count+1）
+# 前提：已用学生账号登录，且已选该课程
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/vote
+Authorization: Bearer {{token}}
+
+###
+# @name 再次点击取消投票（voted=false，vote_count-1）
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/vote
+Authorization: Bearer {{token}}
+
+###
+# @name Teacher 投票 → 期望 403
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/vote
+Authorization: Bearer REPLACE_WITH_TEACHER_TOKEN
+
+###
+# @name 未选课的学生投票 → 期望 403
+POST {{base}}/api/courses/REPLACE_WITH_COURSE_ID/vote
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+###
+# @name 查看课程详情（已登录学生）— 确认 vote_count 和 has_voted 字段
+GET {{base}}/api/courses/REPLACE_WITH_COURSE_ID
+Authorization: Bearer {{token}}
+
+###
+# @name 查看课程详情（未登录）— 确认 has_voted=false
+GET {{base}}/api/courses/REPLACE_WITH_COURSE_ID

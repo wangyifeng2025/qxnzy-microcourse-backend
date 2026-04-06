@@ -1,0 +1,98 @@
+# ============================================
+# 章节 API
+# Base：http://localhost:8080（与 main.rs 一致）
+#
+# GET  /api/courses/:course_id/chapters
+# GET  /api/courses/:course_id/chapters/:chapter_id
+#      — 无需登录；未发布课程仅教师本人或管理员带 Bearer 可见，否则 404
+#
+# POST /api/courses/:course_id/chapters
+# PUT  /api/courses/:course_id/chapters/:chapter_id
+# DELETE /api/courses/:course_id/chapters/:chapter_id
+#      — 教师或管理员，且须为课程创建者（或管理员）
+# ============================================
+@base = http://localhost:8080
+@token = REPLACE_WITH_TEACHER_OR_ADMIN_JWT
+@course_id = REPLACE_WITH_COURSE_UUID
+@chapter_id = REPLACE_WITH_CHAPTER_UUID
+
+# --------------------------------------------
+# GET — 响应 200：Chapter[]（数组）
+# --------------------------------------------
+
+###
+# @name 获取某课程的章节列表
+GET {{base}}/api/courses/{{course_id}}/chapters
+
+# 响应示例 200：
+# [
+#   {
+#     "id": "uuid",
+#     "course_id": "uuid",
+#     "title": "第一章",
+#     "description": "...",
+#     "sort_order": 0,
+#     "created_at": "...",
+#     "updated_at": "..."
+#   }
+# ]
+
+###
+# @name 获取章节详情
+GET {{base}}/api/courses/{{course_id}}/chapters/{{chapter_id}}
+
+# 响应示例 200：单个 Chapter 对象（结构同上单条）
+
+# --------------------------------------------
+# POST — CreateChapterRequest：title, description?, sort_order?
+# 响应 201：Chapter
+# --------------------------------------------
+
+###
+# @name 创建章节（教师/管理员，且须为该课程教师或管理员）
+POST {{base}}/api/courses/{{course_id}}/chapters
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "title": "第一章：环境搭建",
+    "description": "安装 Rust 与开发环境",
+    "sort_order": 1
+}
+
+# 响应示例 201 Created：
+# {
+#   "id": "uuid",
+#   "course_id": "uuid",
+#   "title": "第一章：环境搭建",
+#   "description": "安装 Rust 与开发环境",
+#   "sort_order": 1,
+#   "created_at": "...",
+#   "updated_at": "..."
+# }
+
+# --------------------------------------------
+# PUT — UpdateChapter：title?, description?, sort_order?
+# 响应 200：Chapter
+# --------------------------------------------
+
+###
+# @name 更新章节
+PUT {{base}}/api/courses/{{course_id}}/chapters/{{chapter_id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "title": "第一章：环境搭建与 Hello World",
+    "description": "安装 Rust、配置 IDE 并运行第一个程序",
+    "sort_order": 1
+}
+
+# --------------------------------------------
+# DELETE — 响应 204 No Content
+# --------------------------------------------
+
+###
+# @name 删除章节
+DELETE {{base}}/api/courses/{{course_id}}/chapters/{{chapter_id}}
+Authorization: Bearer {{token}}
