@@ -1,6 +1,6 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -13,7 +13,10 @@ use uuid::Uuid;
 use crate::middleware::auth::AuthContext;
 use crate::models::enums::UserRole;
 use crate::models::pagination::{PageQuery, PagedList};
-use crate::models::user::{CreateUser, RegisterRequest, UpdateUser, UserProfile};
+use crate::models::user::{
+    AdminResetPasswordRequest, ChangePasswordRequest, CreateUser, RegisterRequest, UpdateUser,
+    UserProfile,
+};
 use crate::repositories::user as user_repo;
 
 type AppResult<T> = Result<Json<T>, (StatusCode, String)>;
@@ -181,4 +184,72 @@ pub async fn delete_user(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/users/:id/reset-password — 仅管理员
+/// 重置后 password_reset_required = true，前端应提示用户自行修改密码
+pub async fn admin_reset_password(
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<AdminResetPasswordRequest>,
+) -> AppResult<UserProfile> {
+    if payload.new_password.len() < 6 {
+        return Err((StatusCode::BAD_REQUEST, "密码长度不能少于 6 位".to_string()));
+    }
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(payload.new_password.as_bytes(), &salt)
+        .map_err(internal_error)?
+        .to_string();
+
+    let user = user_repo::reset_password(&pool, id, &password_hash)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("用户不存在"))?;
+
+    Ok(Json(user))
+}
+
+/// PUT /api/users/:id/change-password — 仅本人
+/// 需要提供旧密码验证身份；成功后 password_reset_required 清除为 false
+pub async fn change_password(
+    State(pool): State<PgPool>,
+    Extension(auth): Extension<AuthContext>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> AppResult<UserProfile> {
+    if auth.user_id != id {
+        return Err(forbidden("仅本人可修改自己的密码"));
+    }
+
+    if payload.new_password.len() < 6 {
+        return Err((StatusCode::BAD_REQUEST, "新密码长度不能少于 6 位".to_string()));
+    }
+
+    // 查出旧密码哈希，验证旧密码正确性
+    let user = user_repo::find_by_id_with_hash(&pool, id)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("用户不存在"))?;
+
+    let parsed_hash = PasswordHash::new(&user.password_hash)
+        .map_err(|_| internal_error("密码哈希格式异常"))?;
+
+    Argon2::default()
+        .verify_password(payload.old_password.as_bytes(), &parsed_hash)
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "旧密码不正确".to_string()))?;
+
+    let salt = SaltString::generate(&mut OsRng);
+    let new_hash = Argon2::default()
+        .hash_password(payload.new_password.as_bytes(), &salt)
+        .map_err(internal_error)?
+        .to_string();
+
+    let updated = user_repo::change_password(&pool, id, &new_hash)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("用户不存在"))?;
+
+    Ok(Json(updated))
 }

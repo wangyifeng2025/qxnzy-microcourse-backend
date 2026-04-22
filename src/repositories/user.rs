@@ -9,11 +9,11 @@ use crate::models::{
 
 /// SELECT 字段（含 major_id），供 query_as::<_, UserProfile> 拼接
 const PROFILE_COLS: &str =
-    "id, username, email, role, real_name, avatar_url, is_active, major_id, created_at, updated_at";
+    "id, username, email, role, real_name, avatar_url, is_active, major_id, password_reset_required, created_at, updated_at";
 
 /// SELECT 字段（含密码哈希 + major_id），供 query_as::<_, User> 拼接
 const USER_COLS: &str =
-    "id, username, email, password_hash, role, real_name, avatar_url, is_active, major_id, created_at, updated_at";
+    "id, username, email, password_hash, role, real_name, avatar_url, is_active, major_id, password_reset_required, created_at, updated_at";
 
 pub async fn find_all(pool: &PgPool, query: &PageQuery) -> Result<PagedList<UserProfile>, sqlx::Error> {
     let page_size = query.page_size();
@@ -68,6 +68,17 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserProfile>, 
     sqlx::query_as::<_, UserProfile>(&format!(
         "SELECT {} FROM users WHERE id = $1",
         PROFILE_COLS
+    ))
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// 含密码哈希的查询（供修改密码时验证旧密码）
+pub async fn find_by_id_with_hash(pool: &PgPool, id: Uuid) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {} FROM users WHERE id = $1",
+        USER_COLS
     ))
     .bind(id)
     .fetch_optional(pool)
@@ -165,4 +176,52 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<u64, sqlx::Error> {
         .execute(pool)
         .await
         .map(|r| r.rows_affected())
+}
+
+/// 管理员重置用户密码：更新密码哈希并将 password_reset_required 置为 true
+pub async fn reset_password(
+    pool: &PgPool,
+    id: Uuid,
+    password_hash: &str,
+) -> Result<Option<UserProfile>, sqlx::Error> {
+    sqlx::query_as::<_, UserProfile>(&format!(
+        r#"
+        UPDATE users
+        SET
+            password_hash           = $2,
+            password_reset_required = TRUE,
+            updated_at              = NOW()
+        WHERE id = $1
+        RETURNING {}
+        "#,
+        PROFILE_COLS
+    ))
+    .bind(id)
+    .bind(password_hash)
+    .fetch_optional(pool)
+    .await
+}
+
+/// 用户自行修改密码：更新密码哈希并将 password_reset_required 置为 false
+pub async fn change_password(
+    pool: &PgPool,
+    id: Uuid,
+    password_hash: &str,
+) -> Result<Option<UserProfile>, sqlx::Error> {
+    sqlx::query_as::<_, UserProfile>(&format!(
+        r#"
+        UPDATE users
+        SET
+            password_hash           = $2,
+            password_reset_required = FALSE,
+            updated_at              = NOW()
+        WHERE id = $1
+        RETURNING {}
+        "#,
+        PROFILE_COLS
+    ))
+    .bind(id)
+    .bind(password_hash)
+    .fetch_optional(pool)
+    .await
 }

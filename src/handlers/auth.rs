@@ -30,6 +30,8 @@ pub struct LoginUserInfo {
     pub role: crate::models::enums::UserRole,
     pub real_name: Option<String>,
     pub avatar_url: Option<String>,
+    /// 管理员重置密码后为 true，前端应强制引导用户修改密码
+    pub password_reset_required: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -104,6 +106,7 @@ pub async fn login(
             role: user.role,
             real_name: user.real_name,
             avatar_url: user.avatar_url,
+            password_reset_required: user.password_reset_required,
         },
     }))
 }

@@ -17,6 +17,8 @@ pub struct User {
     pub is_active: bool,
     /// 所属专业（学生）；教师/管理员通常为 None
     pub major_id: Option<Uuid>,
+    /// 管理员重置密码后置为 true，提醒用户自行修改密码
+    pub password_reset_required: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -33,6 +35,8 @@ pub struct UserProfile {
     pub is_active: bool,
     /// 所属专业（学生）；教师/管理员通常为 None
     pub major_id: Option<Uuid>,
+    /// 为 true 时前端应提示用户及时修改密码
+    pub password_reset_required: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -56,7 +60,7 @@ pub struct CreateUser {
     pub real_name: Option<String>,
 }
 
-/// 更新用户信息时的输入结构体
+/// 更新用户信息时的输入结构体（不含密码，密码由专属接口处理）
 #[derive(Debug, Deserialize)]
 pub struct UpdateUser {
     pub email: Option<String>,
@@ -67,6 +71,20 @@ pub struct UpdateUser {
     pub major_id: Option<Uuid>,
     /// 仅管理员可修改角色
     pub role: Option<UserRole>,
+}
+
+/// 管理员重置用户密码的请求体
+/// 重置后 password_reset_required 置为 true，前端应提示用户修改密码
+#[derive(Debug, Deserialize)]
+pub struct AdminResetPasswordRequest {
+    pub new_password: String,
+}
+
+/// 用户自行修改密码的请求体（需提供旧密码验证身份）
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub old_password: String,
+    pub new_password: String,
 }
 
 // 分页类型见 models::pagination::{PageQuery, PagedList}

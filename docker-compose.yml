@@ -28,9 +28,21 @@ services:
       db:
         condition: service_healthy # 确保数据库不仅启动了，而且准备就绪了
     environment:
-      - DATABASE_URL=postgres://micro_user:micro_password@db:5432/qxnzy_microcourse
-      #- ALIYUN_OSS_ACCESS_KEY_ID=your_ak
-      #- ALIYUN_OSS_ACCESS_KEY_SECRET=your_sk
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/qxnzy_microcourse
+      - JWT_SECRET=change-this-in-production
+      - JWT_EXPIRATION=86400
+      - S3_ENDPOINT=https://s3.oss-cn-beijing.aliyuncs.com
+      - S3_ACCESS_KEY=LTAI5tHDdQA473ghqKSrpKCF
+      - S3_SECRET_KEY=Y4rAzmNVDZJUx93eOt6nHgBe9Zr625a
+      - S3_BUCKET=qxnzy-course-video
+      - S3_REGION=oss-cn-beijing
+      # 路径风格寻址（true = 路径风格，推荐；false = 虚拟主机风格）
+      # MinIO 必须为 true；阿里OSS需要虚拟主机风格
+      - S3_FORCE_PATH_STYLE=false
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+      - ADMIN_EMAIL=admin@example.com
+      - ADMIN_REAL_NAME=系统管理员
 
   frontend:
     build:

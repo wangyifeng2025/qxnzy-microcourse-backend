@@ -31,7 +31,10 @@ use handlers::enrollment::{
     unenroll_course,
 };
 use handlers::major::{create_major, delete_major, get_major, list_majors, update_major};
-use handlers::user::{create_user, delete_user, get_user, list_users, register_user, update_user};
+use handlers::user::{
+    admin_reset_password, change_password, create_user, delete_user, get_user, list_users,
+    register_user, update_user,
+};
 use handlers::video::{
     confirm_upload, create_hls_url, create_video, delete_video, get_transcodes, get_video,
     hls_playlist, hls_segment, list_videos, request_upload_url, update_video,
@@ -94,11 +97,15 @@ async fn main() {
     let authenticated_user_routes = Router::new()
         .route("/", get(list_users))
         .route("/{id}", get(get_user).put(update_user))
+        // 用户自行修改密码（需提供旧密码）
+        .route("/{id}/change-password", put(change_password))
         .route_layer(auth_layer.clone());
 
     let admin_user_routes = Router::new()
         .route("/", post(create_user))
         .route("/{id}", delete(delete_user))
+        // 管理员重置用户密码，重置后 password_reset_required = true
+        .route("/{id}/reset-password", post(admin_reset_password))
         .route_layer(from_fn(require_roles_middleware))
         .route_layer(auth_layer.clone())
         .route_layer(Extension(AllowedRoles::new([UserRole::Admin])));
