@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id                            AS \"user_id!\",\n            u.username                      AS \"username!\",\n            u.real_name,\n            u.avatar_url,\n            COUNT(DISTINCT c.id)            AS \"published_course_count!\",\n            COUNT(DISTINCT e.user_id)       AS \"total_student_count!\",\n            COALESCE((\n                SELECT COUNT(*) FROM course_topics ct\n                 WHERE ct.author_id = u.id\n                   AND ct.created_at > NOW() - INTERVAL '30 days'\n            ), 0)\n            + COALESCE((\n                SELECT COUNT(*) FROM course_topic_replies ctr\n                 WHERE ctr.author_id = u.id\n                   AND ctr.created_at > NOW() - INTERVAL '30 days'\n            ), 0)\n            + COALESCE((\n                SELECT COUNT(*) FROM community_topics comt\n                 WHERE comt.author_id = u.id\n                   AND comt.created_at > NOW() - INTERVAL '30 days'\n            ), 0)\n            + COALESCE((\n                SELECT COUNT(*) FROM community_topic_replies comtr\n                 WHERE comtr.author_id = u.id\n                   AND comtr.created_at > NOW() - INTERVAL '30 days'\n            ), 0)                           AS \"recent_activity_count!\"\n        FROM users u\n        JOIN courses c\n          ON c.teacher_id = u.id\n         AND c.status = 'published'::course_status\n        LEFT JOIN course_enrollments e ON e.course_id = c.id\n        WHERE u.role = 'teacher'::user_role\n          AND u.is_active = TRUE\n        GROUP BY u.id, u.username, u.real_name, u.avatar_url\n        ORDER BY\n            COUNT(DISTINCT e.user_id)  DESC,\n            (\n                COALESCE((SELECT COUNT(*) FROM course_topics ct\n                           WHERE ct.author_id = u.id\n                             AND ct.created_at > NOW() - INTERVAL '30 days'), 0)\n              + COALESCE((SELECT COUNT(*) FROM course_topic_replies ctr\n                           WHERE ctr.author_id = u.id\n                             AND ctr.created_at > NOW() - INTERVAL '30 days'), 0)\n              + COALESCE((SELECT COUNT(*) FROM community_topics comt\n                           WHERE comt.author_id = u.id\n                             AND comt.created_at > NOW() - INTERVAL '30 days'), 0)\n              + COALESCE((SELECT COUNT(*) FROM community_topic_replies comtr\n                           WHERE comtr.author_id = u.id\n                             AND comtr.created_at > NOW() - INTERVAL '30 days'), 0)\n            ) DESC,\n            COUNT(DISTINCT c.id) DESC\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "real_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "published_course_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_student_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "recent_activity_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "55eda4ddbe72c0164daf9407fcb9661ba058384be4cdc05ef162952ba28a3a6b"
+}

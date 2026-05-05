@@ -1,0 +1,589 @@
+# ============================================================
+# 课程社区 API
+# Base：http://localhost:8080
+#
+# 所有接口均挂载在 /api/courses/:course_id/ 前缀下
+#
+# 权限总览：
+#   "课程成员" = 课程教师本人 | 已选课学生 | 管理员
+#   话题/回复读写：课程成员
+#   删除话题：话题作者 | 课程教师 | 管理员
+#   删除回复：回复作者 | 课程教师 | 管理员
+#
+# 接口列表：
+#   GET    /api/courses/:cid/topics                              — 话题列表（游标分页，置顶优先）
+#   POST   /api/courses/:cid/topics                              — 发布话题
+#   GET    /api/courses/:cid/topics/:tid                         — 话题详情
+#   DELETE /api/courses/:cid/topics/:tid                         — 删除话题（级联删回复）
+#   GET    /api/courses/:cid/topics/:tid/replies                 — 回复列表（游标分页）
+#   POST   /api/courses/:cid/topics/:tid/replies                 — 发布回复（支持楼中楼 + @提及）
+#   DELETE /api/courses/:cid/topics/:tid/replies/:rid            — 删除回复
+#   GET    /api/courses/:cid/community/members                   — 可 @ 成员列表
+# ============================================================
+
+@base          = http://localhost:8080
+@student_token = REPLACE_WITH_STUDENT_JWT
+@teacher_token = REPLACE_WITH_TEACHER_JWT
+@admin_token   = REPLACE_WITH_ADMIN_JWT
+@course_id     = REPLACE_WITH_COURSE_UUID
+@topic_id      = REPLACE_WITH_TOPIC_UUID
+@reply_id      = REPLACE_WITH_REPLY_UUID
+@user_id_1     = REPLACE_WITH_USER_UUID_1
+@user_id_2     = REPLACE_WITH_USER_UUID_2
+
+# ============================================================
+# 一、话题 Topic
+# ============================================================
+
+###
+# @name 话题列表（第一页，无游标）
+# 返回：置顶话题在前，其余按 created_at DESC
+# 分页游标：next_cursor.is_pinned / next_cursor.created_at / next_cursor.id
+GET {{base}}/api/courses/{{course_id}}/topics?page_size=20
+Authorization: Bearer {{student_token}}
+
+# 响应示例 200：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor": null,            ← 有更多时为 { "is_pinned": false, "created_at": "...", "id": "..." }
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "course_id": "uuid",
+#       "author_id": "uuid",
+#       "author_username": "zhangsan",
+#       "author_real_name": "张三",
+#       "author_avatar_url": null,
+#       "author_role": "student",   ← "student" | "teacher" | "admin"
+#       "title": "关于第三章的问题",
+#       "content": "请问视频里讲的...",
+#       "is_pinned": false,
+#       "reply_count": 5,
+#       "created_at": "2026-04-30T08:00:00Z",
+#       "updated_at": "2026-04-30T08:00:00Z"
+#     }
+#   ]
+# }
+
+###
+# @name 话题列表（下一页，带游标）
+# 将上一页 next_cursor 的三个字段作为查询参数传入
+GET {{base}}/api/courses/{{course_id}}/topics?page_size=20&cursor_is_pinned=false&cursor_created_at=2026-04-30T08:00:00Z&cursor_id={{topic_id}}
+Authorization: Bearer {{teacher_token}}
+
+###
+# @name 话题列表（非课程成员访问 → 期望 403）
+GET {{base}}/api/courses/{{course_id}}/topics
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+###
+# @name 发布话题（学生）
+POST {{base}}/api/courses/{{course_id}}/topics
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "title": "关于第三章 Trait 对象的疑问",
+    "content": "老师，视频里提到 dyn Trait 的性能开销，请问在什么场景下才值得使用？",
+    "mention_user_ids": []
+}
+
+# 响应 201：CourseTopicResponse（同列表中的单条结构）
+
+###
+# @name 发布话题（教师，同时 @ 两名学生）
+POST {{base}}/api/courses/{{course_id}}/topics
+Content-Type: application/json
+Authorization: Bearer {{teacher_token}}
+
+{
+    "title": "【置顶公告】期末考试时间调整通知",
+    "content": "同学们好，期末考试时间改为下周五 14:00，请大家做好准备。@同学一 @同学二",
+    "mention_user_ids": ["{{user_id_1}}", "{{user_id_2}}"]
+}
+
+###
+# @name 发布话题（@ 了非本课程成员 → 期望 400）
+POST {{base}}/api/courses/{{course_id}}/topics
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "title": "测试 @ 非成员",
+    "content": "试试 @一个不在课程里的人",
+    "mention_user_ids": ["00000000-0000-0000-0000-000000000000"]
+}
+
+###
+# @name 发布话题（标题为空 → 期望 400）
+POST {{base}}/api/courses/{{course_id}}/topics
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "title": "   ",
+    "content": "内容不为空",
+    "mention_user_ids": []
+}
+
+###
+# @name 获取话题详情
+GET {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}
+Authorization: Bearer {{student_token}}
+
+# 响应 200：单条 CourseTopicResponse
+
+###
+# @name 获取话题详情（课程不存在 → 期望 404）
+GET {{base}}/api/courses/00000000-0000-0000-0000-000000000000/topics/{{topic_id}}
+Authorization: Bearer {{student_token}}
+
+###
+# @name 删除话题（话题作者本人）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}
+Authorization: Bearer {{student_token}}
+
+# 响应 204 No Content
+# 同时级联删除该话题下所有回复和 @提及记录
+
+###
+# @name 删除话题（课程教师，可删除任意话题）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}
+Authorization: Bearer {{teacher_token}}
+
+# 响应 204 No Content
+
+###
+# @name 删除话题（其他学生，非作者 → 期望 403）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+# ============================================================
+# 二、回复 Reply
+# ============================================================
+
+###
+# @name 回复列表（第一页，无游标）
+# 按 created_at ASC（越早越靠前，楼层顺序）
+GET {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies?page_size=50
+Authorization: Bearer {{student_token}}
+
+# 响应示例 200：
+# {
+#   "page_size": 50,
+#   "has_more": false,
+#   "next_cursor_created_at": null,
+#   "next_cursor_id": null,
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "topic_id": "uuid",
+#       "author_id": "uuid",
+#       "author_username": "lisi",
+#       "author_real_name": "李四",
+#       "author_avatar_url": null,
+#       "author_role": "teacher",
+#       "content": "这是个好问题，dyn Trait 主要用于...",
+#       "reply_to_reply_id": null,   ← 普通回复
+#       "created_at": "2026-04-30T09:00:00Z",
+#       "updated_at": "2026-04-30T09:00:00Z"
+#     }
+#   ]
+# }
+
+###
+# @name 回复列表（下一页，带游标）
+GET {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies?page_size=50&cursor_created_at=2026-04-30T09:00:00Z&cursor_id={{reply_id}}
+Authorization: Bearer {{student_token}}
+
+###
+# @name 发布回复（学生，普通楼层回复话题）
+POST {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "我也有同样的疑问，期待老师解答！",
+    "reply_to_reply_id": null,
+    "mention_user_ids": []
+}
+
+# 响应 201：CourseTopicReplyResponse
+
+###
+# @name 发布回复（教师，回复某条具体回复——楼中楼）
+# reply_to_reply_id 填目标回复的 UUID
+POST {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{teacher_token}}
+
+{
+    "content": "@同学 dyn Trait 主要用于需要运行时多态的场景，比如异构集合...",
+    "reply_to_reply_id": "{{reply_id}}",
+    "mention_user_ids": ["{{user_id_1}}"]
+}
+
+###
+# @name 发布回复（@ 了非课程成员 → 期望 400）
+POST {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "测试 @ 非成员",
+    "reply_to_reply_id": null,
+    "mention_user_ids": ["00000000-0000-0000-0000-000000000000"]
+}
+
+###
+# @name 发布回复（reply_to_reply_id 属于其他话题 → 期望 400）
+POST {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "测试楼中楼指向了错误话题的回复",
+    "reply_to_reply_id": "00000000-0000-0000-0000-000000000001",
+    "mention_user_ids": []
+}
+
+###
+# @name 发布回复（内容为空 → 期望 400）
+POST {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "   ",
+    "reply_to_reply_id": null,
+    "mention_user_ids": []
+}
+
+###
+# @name 删除回复（回复作者本人）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies/{{reply_id}}
+Authorization: Bearer {{student_token}}
+
+# 响应 204 No Content
+# 同时自动将 topic.reply_count - 1
+
+###
+# @name 删除回复（课程教师，可删除任意回复）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies/{{reply_id}}
+Authorization: Bearer {{teacher_token}}
+
+# 响应 204 No Content
+
+###
+# @name 删除回复（非作者学生 → 期望 403）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies/{{reply_id}}
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+###
+# @name 删除回复（回复不存在 → 期望 404）
+DELETE {{base}}/api/courses/{{course_id}}/topics/{{topic_id}}/replies/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{teacher_token}}
+
+# ============================================================
+# 三、可 @ 成员列表
+# 返回该课程中所有可 @ 的用户（已选课学生 + 课程教师），按用户名排序
+# ============================================================
+
+###
+# @name 获取可 @ 成员列表（学生）
+GET {{base}}/api/courses/{{course_id}}/community/members
+Authorization: Bearer {{student_token}}
+
+# 响应示例 200：
+# [
+#   {
+#     "user_id": "uuid",
+#     "username": "lisi",
+#     "real_name": "李四",
+#     "avatar_url": null,
+#     "role": "teacher"
+#   },
+#   {
+#     "user_id": "uuid",
+#     "username": "zhangsan",
+#     "real_name": "张三",
+#     "avatar_url": null,
+#     "role": "student"
+#   }
+# ]
+
+###
+# @name 获取可 @ 成员列表（非课程成员 → 期望 403）
+GET {{base}}/api/courses/{{course_id}}/community/members
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+###
+# @name 获取可 @ 成员列表（未登录 → 期望 401）
+GET {{base}}/api/courses/{{course_id}}/community/members
+
+# ============================================================
+# 四、独立社区话题（/api/community/topics）
+#
+# 不依附于任何课程，由教师/管理员开设，任意用户可加入并参与讨论。
+#
+# 权限总览：
+#   开设话题：教师 | 管理员
+#   浏览话题列表/详情：任意已登录用户
+#   加入话题：任意已登录用户
+#   退出话题：话题成员（话题创建者不可退出）
+#   查看成员列表：话题成员 | 管理员
+#   发布/浏览回复：话题成员 | 管理员
+#   删除话题：话题作者 | 管理员
+#   删除回复：回复作者 | 话题作者 | 管理员
+#
+# 接口列表：
+#   GET    /api/community/topics                              — 话题列表（游标分页，置顶优先）
+#   POST   /api/community/topics                              — 开设话题（教师/管理员）
+#   GET    /api/community/topics/:tid                         — 话题详情
+#   DELETE /api/community/topics/:tid                         — 删除话题
+#   POST   /api/community/topics/:tid/join                    — 加入话题
+#   DELETE /api/community/topics/:tid/join                    — 退出话题
+#   GET    /api/community/topics/:tid/members                 — 成员列表
+#   GET    /api/community/topics/:tid/replies                 — 回复列表（游标分页）
+#   POST   /api/community/topics/:tid/replies                 — 发布回复（支持楼中楼 + @提及）
+#   DELETE /api/community/topics/:tid/replies/:rid            — 删除回复
+# ============================================================
+
+@standalone_topic_id = REPLACE_WITH_STANDALONE_TOPIC_UUID
+@standalone_reply_id = REPLACE_WITH_STANDALONE_REPLY_UUID
+
+###
+# @name 独立社区话题列表（第一页，无游标）
+# 任意已登录用户均可访问
+GET {{base}}/api/community/topics?page_size=20
+Authorization: Bearer {{student_token}}
+
+# 响应示例 200：
+# {
+#   "page_size": 20,
+#   "has_more": false,
+#   "next_cursor": null,
+#   "items": [
+#     {
+#       "id": "uuid",
+#       "author_id": "uuid",
+#       "author_username": "teacher01",
+#       "author_real_name": "张老师",
+#       "author_avatar_url": null,
+#       "author_role": "teacher",
+#       "title": "考研的数学辅导",
+#       "content": "欢迎加入本话题，一起备考考研数学...",
+#       "is_pinned": false,
+#       "reply_count": 0,
+#       "member_count": 1,
+#       "created_at": "2026-05-05T01:00:00Z",
+#       "updated_at": "2026-05-05T01:00:00Z"
+#     }
+#   ]
+# }
+
+###
+# @name 独立社区话题列表（下一页，带游标）
+GET {{base}}/api/community/topics?page_size=20&cursor_is_pinned=false&cursor_created_at=2026-05-05T01:00:00Z&cursor_id={{standalone_topic_id}}
+Authorization: Bearer {{teacher_token}}
+
+###
+# @name 开设独立社区话题（教师）
+POST {{base}}/api/community/topics
+Content-Type: application/json
+Authorization: Bearer {{teacher_token}}
+
+{
+    "title": "考研的数学辅导",
+    "content": "欢迎加入本话题！本话题面向有考研意向的同学，一起交流数学备考经验、分享资料、答疑解惑。",
+    "mention_user_ids": []
+}
+
+# 响应 201：CommunityTopicResponse（同列表中的单条结构）
+
+###
+# @name 开设独立社区话题（学生 → 期望 403）
+POST {{base}}/api/community/topics
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "title": "学生尝试开设话题",
+    "content": "这应该失败",
+    "mention_user_ids": []
+}
+
+###
+# @name 开设话题（标题为空 → 期望 400）
+POST {{base}}/api/community/topics
+Content-Type: application/json
+Authorization: Bearer {{teacher_token}}
+
+{
+    "title": "   ",
+    "content": "内容不为空",
+    "mention_user_ids": []
+}
+
+###
+# @name 获取独立社区话题详情
+GET {{base}}/api/community/topics/{{standalone_topic_id}}
+Authorization: Bearer {{student_token}}
+
+# 响应 200：CommunityTopicResponse
+
+###
+# @name 获取不存在的话题详情（期望 404）
+GET {{base}}/api/community/topics/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{student_token}}
+
+###
+# @name 加入独立社区话题（学生）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/join
+Authorization: Bearer {{student_token}}
+
+# 响应 200 OK（已是成员时同样返回 200，幂等）
+
+###
+# @name 加入独立社区话题（管理员）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/join
+Authorization: Bearer {{admin_token}}
+
+###
+# @name 查看成员列表（话题成员）
+GET {{base}}/api/community/topics/{{standalone_topic_id}}/members
+Authorization: Bearer {{student_token}}
+
+# 响应示例 200：
+# [
+#   {
+#     "user_id": "uuid",
+#     "username": "teacher01",
+#     "real_name": "张老师",
+#     "avatar_url": null,
+#     "role": "teacher",
+#     "joined_at": "2026-05-05T01:00:00Z"
+#   },
+#   {
+#     "user_id": "uuid",
+#     "username": "student01",
+#     "real_name": "李同学",
+#     "avatar_url": null,
+#     "role": "student",
+#     "joined_at": "2026-05-05T01:05:00Z"
+#   }
+# ]
+
+###
+# @name 查看成员列表（非成员 → 期望 403）
+GET {{base}}/api/community/topics/{{standalone_topic_id}}/members
+Authorization: Bearer REPLACE_WITH_NON_MEMBER_TOKEN
+
+###
+# @name 发布回复（话题成员）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "请问老师，考研数学需要提前几个月开始准备？",
+    "reply_to_reply_id": null,
+    "mention_user_ids": []
+}
+
+# 响应 201：CommunityTopicReplyResponse
+
+###
+# @name 发布回复（楼中楼）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{teacher_token}}
+
+{
+    "content": "@同学 一般建议提前一年开始系统复习，重点掌握高等数学和线性代数。",
+    "reply_to_reply_id": "{{standalone_reply_id}}",
+    "mention_user_ids": ["{{user_id_1}}"]
+}
+
+###
+# @name 发布回复（非成员 → 期望 403）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer REPLACE_WITH_NON_MEMBER_TOKEN
+
+{
+    "content": "非成员尝试发布",
+    "reply_to_reply_id": null,
+    "mention_user_ids": []
+}
+
+###
+# @name 发布回复（@了非话题成员 → 期望 400）
+POST {{base}}/api/community/topics/{{standalone_topic_id}}/replies
+Content-Type: application/json
+Authorization: Bearer {{student_token}}
+
+{
+    "content": "测试 @ 非成员",
+    "reply_to_reply_id": null,
+    "mention_user_ids": ["00000000-0000-0000-0000-000000000000"]
+}
+
+###
+# @name 获取回复列表（第一页）
+GET {{base}}/api/community/topics/{{standalone_topic_id}}/replies?page_size=50
+Authorization: Bearer {{student_token}}
+
+###
+# @name 获取回复列表（下一页，带游标）
+GET {{base}}/api/community/topics/{{standalone_topic_id}}/replies?page_size=50&cursor_created_at=2026-05-05T01:10:00Z&cursor_id={{standalone_reply_id}}
+Authorization: Bearer {{student_token}}
+
+###
+# @name 删除回复（回复作者本人）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/replies/{{standalone_reply_id}}
+Authorization: Bearer {{student_token}}
+
+# 响应 204 No Content
+
+###
+# @name 删除回复（话题作者，可删除任意回复）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/replies/{{standalone_reply_id}}
+Authorization: Bearer {{teacher_token}}
+
+# 响应 204 No Content
+
+###
+# @name 删除回复（无权限的非作者 → 期望 403）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/replies/{{standalone_reply_id}}
+Authorization: Bearer REPLACE_WITH_OTHER_STUDENT_TOKEN
+
+###
+# @name 退出话题（话题成员）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/join
+Authorization: Bearer {{student_token}}
+
+# 响应 204 No Content
+
+###
+# @name 退出话题（话题创建者不可退出 → 期望 400）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/join
+Authorization: Bearer {{teacher_token}}
+
+###
+# @name 退出话题（未加入的用户 → 期望 400）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}/join
+Authorization: Bearer REPLACE_WITH_NON_MEMBER_TOKEN
+
+###
+# @name 删除话题（话题作者）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}
+Authorization: Bearer {{teacher_token}}
+
+# 响应 204 No Content（级联删除所有回复和提及记录）
+
+###
+# @name 删除话题（非作者非管理员 → 期望 403）
+DELETE {{base}}/api/community/topics/{{standalone_topic_id}}
+Authorization: Bearer {{student_token}}

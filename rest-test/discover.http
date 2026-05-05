@@ -1,0 +1,140 @@
+# ============================================================
+# 发现页 API（Discover）
+# Base：http://localhost:8080
+#
+# 三个端点均无需登录，适用于首页/发现页渲染。
+# limit 参数默认 10，最大 50。
+#
+# 热门课程评分：enrollment_count * 2 + vote_count
+#   - 选课人数权重更高：选课需主动决策，比"点赞"更能反映课程价值
+#   - 仅统计已发布课程
+#
+# 活跃教师判定（三级排序）：
+#   1. total_student_count  — 旗下所有已发布课程的累计不重复学生数
+#   2. recent_activity_count — 近 30 天在各社区的话题数 + 回复数
+#   3. published_course_count — 已发布课程数（兜底）
+#
+# 最新话题来源：
+#   source = "course"    → source_id = 所属课程 ID，source_title = 课程标题
+#   source = "community" → source_id = null，source_title = null
+#
+# 接口列表：
+#   GET /api/discover/popular-courses?limit=10
+#   GET /api/discover/active-teachers?limit=10
+#   GET /api/discover/latest-topics?limit=10
+# ============================================================
+
+@base = http://localhost:8080
+
+# ============================================================
+# 一、热门课程
+# ============================================================
+
+###
+# @name 热门课程（默认 10 条）
+GET {{base}}/api/discover/popular-courses
+
+# 响应示例 200：
+# [
+#   {
+#     "id": "uuid",
+#     "title": "Rust 系统编程入门",
+#     "description": "从零掌握 Rust...",
+#     "cover_image_url": "https://...",
+#     "major_id": "uuid",
+#     "teacher_id": "uuid",
+#     "teacher_name": "张老师",
+#     "status": "published",
+#     "created_at": "2026-03-01T00:00:00Z",
+#     "updated_at": "2026-04-01T00:00:00Z",
+#     "vote_count": 42,
+#     "enrollment_count": 128   ← 核心热度指标
+#   }
+# ]
+
+###
+# @name 热门课程（自定义 limit=5）
+GET {{base}}/api/discover/popular-courses?limit=5
+
+###
+# @name 热门课程（limit 超出上限 50 → 自动截断为 50）
+GET {{base}}/api/discover/popular-courses?limit=999
+
+# ============================================================
+# 二、活跃教师
+# ============================================================
+
+###
+# @name 活跃教师（默认 10 条）
+GET {{base}}/api/discover/active-teachers
+
+# 响应示例 200：
+# [
+#   {
+#     "user_id": "uuid",
+#     "username": "teacher_zhang",
+#     "real_name": "张老师",
+#     "avatar_url": null,
+#     "published_course_count": 5,       ← 已发布课程数
+#     "total_student_count": 234,        ← 累计不重复学生数（首要排序依据）
+#     "recent_activity_count": 17        ← 近 30 天话题 + 回复数（次要排序依据）
+#   }
+# ]
+
+###
+# @name 活跃教师（limit=3）
+GET {{base}}/api/discover/active-teachers?limit=3
+
+###
+# @name 活跃教师（limit=50，最大值）
+GET {{base}}/api/discover/active-teachers?limit=50
+
+# ============================================================
+# 三、最新话题
+# ============================================================
+
+###
+# @name 最新话题（默认 10 条，汇总课程社区 + 独立社区）
+GET {{base}}/api/discover/latest-topics
+
+# 响应示例 200：
+# [
+#   {
+#     "id": "uuid",
+#     "author_id": "uuid",
+#     "author_username": "student01",
+#     "author_real_name": "李同学",
+#     "author_avatar_url": null,
+#     "author_role": "student",
+#     "title": "关于第三章 Trait 对象的疑问",
+#     "content_preview": "老师，视频里提到 dyn Trait 的性能开销...",  ← 前 200 字
+#     "reply_count": 3,
+#     "created_at": "2026-05-05T08:30:00Z",
+#     "source": "course",           ← "course" | "community"
+#     "source_id": "uuid",          ← 课程 ID（source = "course" 时）
+#     "source_title": "Rust 系统编程入门"  ← 课程标题（source = "course" 时）
+#   },
+#   {
+#     "id": "uuid",
+#     "author_id": "uuid",
+#     "author_username": "teacher_li",
+#     "author_real_name": "李老师",
+#     "author_avatar_url": null,
+#     "author_role": "teacher",
+#     "title": "考研的数学辅导",
+#     "content_preview": "欢迎加入本话题，一起备考考研数学...",
+#     "reply_count": 0,
+#     "created_at": "2026-05-05T01:00:00Z",
+#     "source": "community",        ← 独立社区话题
+#     "source_id": null,
+#     "source_title": null
+#   }
+# ]
+
+###
+# @name 最新话题（limit=20）
+GET {{base}}/api/discover/latest-topics?limit=20
+
+###
+# @name 最新话题（limit=1，只看最新一条）
+GET {{base}}/api/discover/latest-topics?limit=1

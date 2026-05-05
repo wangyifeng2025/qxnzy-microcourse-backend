@@ -26,7 +26,8 @@ impl PageQuery {
 
 /// 游标分页响应（用户、专业等通用）
 #[derive(Debug, Serialize)]
-pub struct PagedList<T: Serialize> {
+#[serde(bound(serialize = "T: serde::Serialize"))]
+pub struct PagedList<T> {
     /// 每页条数
     pub page_size: i64,
     /// 是否还有下一页

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO course_topic_mentions (id, topic_id, mentioned_user_id, created_at)\n            VALUES (gen_random_uuid(), $1, $2, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "70c8a511dc8965c02a17e24c996abf949744104d5f52377b7502b8ecef95bcee"
+}

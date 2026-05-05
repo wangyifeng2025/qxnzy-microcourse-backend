@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO community_topics (id, author_id, title, content, created_at, updated_at)\n        VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "37df2c07282340de44b1df933b5b5f8f2a6c06c4e5e61fbae5482c5958e0648a"
+}

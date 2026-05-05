@@ -1,4 +1,6 @@
+pub mod community;
 pub mod course;
+pub mod discover;
 pub mod enums;
 pub mod interaction;
 pub mod learning;

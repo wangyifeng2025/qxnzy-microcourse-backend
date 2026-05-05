@@ -73,7 +73,12 @@ async fn resolve_cover_display_url(stored: Option<&str>, storage: &AppStorage) -
     }
 }
 
-async fn course_to_response(course: Course, storage: &AppStorage, has_voted: bool) -> CourseResponse {
+async fn course_to_response(
+    course: Course,
+    storage: &AppStorage,
+    has_voted: bool,
+    major_name: Option<String>,
+) -> CourseResponse {
     let cover_image_url = resolve_cover_display_url(course.cover_image_url.as_deref(), storage).await;
     CourseResponse {
         id: course.id,
@@ -81,6 +86,7 @@ async fn course_to_response(course: Course, storage: &AppStorage, has_voted: boo
         description: course.description,
         cover_image_url,
         major_id: course.major_id,
+        major_name,
         teacher_id: course.teacher_id,
         teacher_name: course.teacher_name,
         status: course.status,
@@ -141,9 +147,13 @@ pub async fn list_courses(
     };
 
     let mut items = Vec::with_capacity(result.items.len());
-    for c in result.items {
+    for row in result.items {
+        let (c, major_name) = row.into_course_and_major();
+        if !course_visible_to(&c, auth.as_ref()) {
+            continue;
+        }
         let has_voted = voted_set.contains(&c.id);
-        items.push(course_to_response(c, &storage, has_voted).await);
+        items.push(course_to_response(c, &storage, has_voted, major_name).await);
     }
     Ok(Json(PagedList {
         page_size: result.page_size,
@@ -172,7 +182,7 @@ pub async fn list_courses_manage(
         .map_err(internal_error)?;
     let mut items = Vec::with_capacity(result.items.len());
     for c in result.items {
-        items.push(course_to_response(c, &storage, false).await);
+        items.push(course_to_response(c, &storage, false, None).await);
     }
     Ok(Json(PagedList {
         page_size: result.page_size,
@@ -210,7 +220,10 @@ pub async fn get_course(
         }
         _ => false,
     };
-    let out = course_to_response(course, &storage, has_voted).await;
+    let major_name = course_repo::major_name_for_major_id(&pool, course.major_id)
+        .await
+        .map_err(internal_error)?;
+    let out = course_to_response(course, &storage, has_voted, major_name).await;
     Ok(Json(out))
 }
 
@@ -229,7 +242,7 @@ pub async fn create_course(
         .await
         .map_err(internal_error)?;
 
-    let out = course_to_response(course, &storage, false).await;
+    let out = course_to_response(course, &storage, false, None).await;
 
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -273,7 +286,7 @@ pub async fn update_course(
         .map_err(internal_error)?
         .ok_or_else(|| not_found("课程不存在"))?;
 
-    let out = course_to_response(updated, &storage, false).await;
+    let out = course_to_response(updated, &storage, false, None).await;
     Ok(Json(out))
 }
 

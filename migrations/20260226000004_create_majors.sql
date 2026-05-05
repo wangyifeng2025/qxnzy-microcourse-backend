@@ -1,4 +1,4 @@
-CREATE TABLE majors (
+CREATE TABLE IF NOT EXISTS majors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     name VARCHAR(100) NOT NULL,
     code VARCHAR(50) UNIQUE, -- 专业代码，如 "CS"、"EE"

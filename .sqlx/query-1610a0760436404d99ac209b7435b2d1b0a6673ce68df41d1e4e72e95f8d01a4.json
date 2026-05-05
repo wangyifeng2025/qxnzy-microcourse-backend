@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.id AS \"id!\"\n        FROM users u\n        WHERE u.id = ANY($2)\n          AND (\n            EXISTS (\n                SELECT 1 FROM course_enrollments e\n                WHERE e.user_id = u.id AND e.course_id = $1\n            )\n            OR\n            EXISTS (\n                SELECT 1 FROM courses c\n                WHERE c.id = $1 AND c.teacher_id = u.id\n            )\n          )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1610a0760436404d99ac209b7435b2d1b0a6673ce68df41d1e4e72e95f8d01a4"
+}

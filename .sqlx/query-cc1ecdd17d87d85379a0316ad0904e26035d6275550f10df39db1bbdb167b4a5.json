@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT\n            u.id          AS \"user_id!\",\n            u.username    AS \"username!\",\n            u.real_name,\n            u.avatar_url,\n            u.role        AS \"role!: _\"\n        FROM users u\n        WHERE u.is_active = TRUE\n          AND (\n            EXISTS (\n                SELECT 1 FROM course_enrollments e\n                WHERE e.user_id = u.id AND e.course_id = $1\n            )\n            OR\n            EXISTS (\n                SELECT 1 FROM courses c\n                WHERE c.id = $1 AND c.teacher_id = u.id\n            )\n          )\n        ORDER BY username ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "username!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "real_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "role!: _",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "student",
+                "teacher",
+                "admin"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "cc1ecdd17d87d85379a0316ad0904e26035d6275550f10df39db1bbdb167b4a5"
+}

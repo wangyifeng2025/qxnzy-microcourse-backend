@@ -1,0 +1,105 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT\n                        t.id, t.author_id,\n                        u.username   AS author_username,\n                        u.real_name  AS author_real_name,\n                        u.avatar_url AS author_avatar_url,\n                        u.role       AS \"author_role: _\",\n                        t.title, t.content, t.is_pinned, t.reply_count, t.member_count,\n                        t.created_at, t.updated_at\n                    FROM community_topics t\n                    JOIN users u ON u.id = t.author_id\n                    ORDER BY t.is_pinned DESC, t.created_at DESC, t.id DESC\n                    LIMIT $1\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "author_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "author_username",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "author_real_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "author_avatar_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "author_role: _",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "student",
+                "teacher",
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "reply_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "member_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fc48ae2478c4b13b045b78184894741d1c7ad7305f941e5ff1198189d8c4d882"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE course_topics SET reply_count = GREATEST(0, reply_count - 1), updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8e81822904632ae5e0a9c0cf71fdbaca2a4efc56cc3097daa953cd6da7aa18a0"
+}

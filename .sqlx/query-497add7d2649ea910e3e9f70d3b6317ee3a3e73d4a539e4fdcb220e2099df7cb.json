@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO community_topic_mentions (id, reply_id, mentioned_user_id, created_at)\n            VALUES (gen_random_uuid(), $1, $2, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "497add7d2649ea910e3e9f70d3b6317ee3a3e73d4a539e4fdcb220e2099df7cb"
+}

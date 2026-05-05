@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE community_topics SET reply_count = GREATEST(0, reply_count - 1), updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e6653b2a07563ccffbb0986e06d42b83557f726c59d8eca182519307ef667604"
+}

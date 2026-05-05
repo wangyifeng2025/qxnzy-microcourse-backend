@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::{
-    course::{Course, CreateCourse, UpdateCourse},
+    course::{Course, CreateCourse, PublishedCourseRow, UpdateCourse},
     enums::CourseStatus,
     pagination::{PageQuery, PagedList},
 };
@@ -17,53 +17,55 @@ use crate::models::{
 //     c.status AS "status: _", c.created_at, c.updated_at
 // "#;
 
-/// 门户/首页：仅已发布课程
+/// 门户/首页：仅已发布课程（LEFT JOIN majors 取专业名称）
 pub async fn find_all_published(
     pool: &PgPool,
     query: &PageQuery,
-) -> Result<PagedList<Course>, sqlx::Error> {
+) -> Result<PagedList<PublishedCourseRow>, sqlx::Error> {
     let page_size = query.page_size();
     let fetch_limit = page_size + 1;
 
     let mut items = match (query.cursor_created_at, query.cursor_id) {
         (Some(cursor_created_at), Some(cursor_id)) => {
-            sqlx::query_as!(
-                Course,
+            sqlx::query_as::<_, PublishedCourseRow>(
                 r#"
                 SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,
                        c.teacher_id, u.real_name AS teacher_name,
-                       c.status AS "status: _", c.created_at, c.updated_at,
-                       c.vote_count
+                       c.status, c.created_at, c.updated_at,
+                       c.vote_count,
+                       m.name AS major_name
                 FROM courses c
                 LEFT JOIN users u ON u.id = c.teacher_id
+                LEFT JOIN majors m ON m.id = c.major_id
                 WHERE c.status = 'published'::course_status
                   AND (c.created_at, c.id) < ($1, $2)
                 ORDER BY c.created_at DESC, c.id DESC
                 LIMIT $3
                 "#,
-                cursor_created_at,
-                cursor_id,
-                fetch_limit,
             )
+            .bind(cursor_created_at)
+            .bind(cursor_id)
+            .bind(fetch_limit)
             .fetch_all(pool)
             .await?
         }
         _ => {
-            sqlx::query_as!(
-                Course,
+            sqlx::query_as::<_, PublishedCourseRow>(
                 r#"
                 SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,
                        c.teacher_id, u.real_name AS teacher_name,
-                       c.status AS "status: _", c.created_at, c.updated_at,
-                       c.vote_count
+                       c.status, c.created_at, c.updated_at,
+                       c.vote_count,
+                       m.name AS major_name
                 FROM courses c
                 LEFT JOIN users u ON u.id = c.teacher_id
+                LEFT JOIN majors m ON m.id = c.major_id
                 WHERE c.status = 'published'::course_status
                 ORDER BY c.created_at DESC, c.id DESC
                 LIMIT $1
                 "#,
-                fetch_limit,
             )
+            .bind(fetch_limit)
             .fetch_all(pool)
             .await?
         }
@@ -90,6 +92,20 @@ pub async fn find_all_published(
         next_cursor_id,
         items,
     })
+}
+
+/// 按专业 ID 解析展示名称（课程详情等单条接口用）
+pub async fn major_name_for_major_id(
+    pool: &PgPool,
+    major_id: Option<Uuid>,
+) -> Result<Option<String>, sqlx::Error> {
+    let Some(mid) = major_id else {
+        return Ok(None);
+    };
+    sqlx::query_scalar::<_, String>(r#"SELECT name FROM majors WHERE id = $1"#)
+        .bind(mid)
+        .fetch_optional(pool)
+        .await
 }
 
 /// 课程管理列表：`teacher_filter = None` 时管理员看全站；`Some(teacher_id)` 时仅该教师课程（含草稿/归档）

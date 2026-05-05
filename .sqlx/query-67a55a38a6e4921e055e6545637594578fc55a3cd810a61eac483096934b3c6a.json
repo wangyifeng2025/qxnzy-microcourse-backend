@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO community_topic_replies\n            (id, topic_id, author_id, content, reply_to_reply_id, created_at, updated_at)\n        VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "67a55a38a6e4921e055e6545637594578fc55a3cd810a61eac483096934b3c6a"
+}

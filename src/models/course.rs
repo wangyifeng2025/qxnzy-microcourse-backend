@@ -20,6 +20,43 @@ pub struct Course {
     pub vote_count: i64,
 }
 
+/// 门户课程列表行（含所属专业名称，来自 JOIN majors）
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PublishedCourseRow {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub cover_image_url: Option<String>,
+    pub major_id: Option<Uuid>,
+    pub teacher_id: Uuid,
+    pub teacher_name: Option<String>,
+    pub status: CourseStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub vote_count: i64,
+    pub major_name: Option<String>,
+}
+
+impl PublishedCourseRow {
+    pub fn into_course_and_major(self) -> (Course, Option<String>) {
+        let major_name = self.major_name;
+        let course = Course {
+            id: self.id,
+            title: self.title,
+            description: self.description,
+            cover_image_url: self.cover_image_url,
+            major_id: self.major_id,
+            teacher_id: self.teacher_id,
+            teacher_name: self.teacher_name,
+            status: self.status,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            vote_count: self.vote_count,
+        };
+        (course, major_name)
+    }
+}
+
 /// 课程 API 对外 JSON（`cover_image_url` 为可浏览器加载的地址：MinIO key 会转为预签名 GET）
 #[derive(Debug, Clone, Serialize)]
 pub struct CourseResponse {
@@ -28,6 +65,8 @@ pub struct CourseResponse {
     pub description: Option<String>,
     pub cover_image_url: Option<String>,
     pub major_id: Option<Uuid>,
+    /// 所属专业名称（门户列表等 JOIN majors；未关联或旧数据为 null）
+    pub major_name: Option<String>,
     pub teacher_id: Uuid,
     pub teacher_name: Option<String>,
     pub status: CourseStatus,

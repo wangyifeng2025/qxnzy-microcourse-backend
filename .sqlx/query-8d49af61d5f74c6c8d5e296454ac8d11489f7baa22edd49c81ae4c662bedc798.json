@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO community_topic_members (topic_id, user_id, joined_at)\n        VALUES ($1, $2, NOW())\n        ON CONFLICT DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d49af61d5f74c6c8d5e296454ac8d11489f7baa22edd49c81ae4c662bedc798"
+}

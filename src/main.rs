@@ -18,8 +18,16 @@ use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use handlers::auth::login;
+use handlers::discover::{active_teachers, latest_topics, popular_courses};
 use handlers::chapter::{
     create_chapter, delete_chapter, get_chapter, list_chapters, update_chapter,
+};
+use handlers::community::{
+    create_reply, create_standalone_topic, create_standalone_topic_reply, create_topic,
+    delete_reply, delete_standalone_topic, delete_standalone_topic_reply, delete_topic,
+    get_standalone_topic, get_topic, join_standalone_topic, leave_standalone_topic,
+    list_community_members, list_replies, list_standalone_topic_members,
+    list_standalone_topic_replies, list_standalone_topics, list_topic_highlights, list_topics,
 };
 use handlers::course::{
     confirm_course_cover, create_course, delete_course, delete_course_cover, get_course,
@@ -144,6 +152,10 @@ async fn main() {
     // 课程公开路由：无需登录（门户列表仅已发布；详情/章节对未发布需带教师或管理员 Token）
     let public_course_routes = Router::new()
         .route("/", get(list_courses))
+        .route(
+            "/{course_id}/topics/highlight",
+            get(list_topic_highlights),
+        )
         .route("/{id}", get(get_course))
         .route("/{course_id}/chapters", get(list_chapters))
         .route("/{course_id}/chapters/{chapter_id}", get(get_chapter));
@@ -183,11 +195,79 @@ async fn main() {
         .route("/{id}/vote", post(toggle_course_vote))
         .route_layer(auth_layer.clone());
 
+    // 社区路由：话题、回复、@候选成员（均需登录）
+    // 注意：/community/members 的字面量路径须先于 /{topic_id} 注册，避免被参数路由拦截
+    let community_routes = Router::new()
+        .route("/{course_id}/community/members", get(list_community_members))
+        .route(
+            "/{course_id}/topics",
+            get(list_topics).post(create_topic),
+        )
+        .route(
+            "/{course_id}/topics/{topic_id}",
+            get(get_topic).delete(delete_topic),
+        )
+        .route(
+            "/{course_id}/topics/{topic_id}/replies",
+            get(list_replies).post(create_reply),
+        )
+        .route(
+            "/{course_id}/topics/{topic_id}/replies/{reply_id}",
+            delete(delete_reply),
+        )
+        .route_layer(auth_layer.clone());
+
     let course_routes = Router::new()
         .merge(course_manage_routes)
         .merge(public_course_routes)
         .merge(teacher_course_routes)
-        .merge(enrollment_routes);
+        .merge(enrollment_routes)
+        .merge(community_routes);
+
+    // 独立社区话题路由（不依附课程，挂载在 /api/community 下）
+    // 话题列表和详情：任意已登录用户可访问
+    let standalone_community_read_routes = Router::new()
+        .route("/topics", get(list_standalone_topics))
+        .route("/topics/{topic_id}", get(get_standalone_topic))
+        .route_layer(auth_layer.clone());
+
+    // 开设话题：仅教师 / 管理员
+    let standalone_community_create_routes = Router::new()
+        .route("/topics", post(create_standalone_topic))
+        .route_layer(from_fn(require_roles_middleware))
+        .route_layer(Extension(AllowedRoles::new([
+            UserRole::Teacher,
+            UserRole::Admin,
+        ])))
+        .route_layer(auth_layer.clone());
+
+    // 删除话题：任意已登录用户（handler 内校验作者/管理员权限）
+    let standalone_community_delete_topic_routes = Router::new()
+        .route("/topics/{topic_id}", delete(delete_standalone_topic))
+        .route_layer(auth_layer.clone());
+
+    // 加入/退出/成员列表/回复：任意已登录用户（handler 内校验成员权限）
+    let standalone_community_member_routes = Router::new()
+        .route(
+            "/topics/{topic_id}/join",
+            post(join_standalone_topic).delete(leave_standalone_topic),
+        )
+        .route("/topics/{topic_id}/members", get(list_standalone_topic_members))
+        .route(
+            "/topics/{topic_id}/replies",
+            get(list_standalone_topic_replies).post(create_standalone_topic_reply),
+        )
+        .route(
+            "/topics/{topic_id}/replies/{reply_id}",
+            delete(delete_standalone_topic_reply),
+        )
+        .route_layer(auth_layer.clone());
+
+    let standalone_community_routes = Router::new()
+        .merge(standalone_community_read_routes)
+        .merge(standalone_community_create_routes)
+        .merge(standalone_community_delete_topic_routes)
+        .merge(standalone_community_member_routes);
 
     // 章节下的视频列表（无需登录）
     let public_chapter_video_routes = Router::new().route("/{chapter_id}/videos", get(list_videos));
@@ -233,12 +313,20 @@ async fn main() {
         .merge(teacher_video_routes)
         .merge(hls_video_routes);
 
+    // 发现页接口：热门课程 / 活跃教师 / 最新话题（均无需登录）
+    let discover_routes = Router::new()
+        .route("/popular-courses", get(popular_courses))
+        .route("/active-teachers", get(active_teachers))
+        .route("/latest-topics", get(latest_topics));
+
     let app = Router::new()
         .route("/", get(|| async { "QXNZY 微课平台后端服务运行中" }))
         .nest("/api/auth", public_auth_routes)
         .nest("/api/users", user_routes)
         .nest("/api/majors", major_routes)
         .nest("/api/courses", course_routes)
+        .nest("/api/community", standalone_community_routes)
+        .nest("/api/discover", discover_routes)
         // 视频相关路由
         .nest("/api/videos", video_routes)
         .nest(

@@ -77,6 +77,7 @@ pub async fn list_enrolled_courses(
             description: c.description,
             cover_image_url,
             major_id: c.major_id,
+            major_name: None,
             teacher_id: c.teacher_id,
             teacher_name: c.teacher_name,
             status: c.status,
