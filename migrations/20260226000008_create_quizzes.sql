@@ -14,19 +14,19 @@ CREATE TABLE IF NOT EXISTS quizzes (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 测试题目
-CREATE TABLE IF NOT EXISTS quiz_questions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-    quiz_id UUID NOT NULL REFERENCES quizzes (id) ON DELETE CASCADE,
-    question_type question_type NOT NULL,
-    content TEXT NOT NULL,
-    options JSONB, -- 选项数组
-    correct_answer JSONB, -- 正确答案
-    score NUMERIC(6, 2),
-    explanation TEXT, -- 解析
-    sort_order INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- -- 测试题目
+-- CREATE TABLE IF NOT EXISTS quiz_questions (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
+--     quiz_id UUID NOT NULL REFERENCES quizzes (id) ON DELETE CASCADE,
+--     question_type question_type NOT NULL,
+--     content TEXT NOT NULL,
+--     options JSONB, -- 选项数组
+--     correct_answer JSONB, -- 正确答案
+--     score NUMERIC(6, 2),
+--     explanation TEXT, -- 解析
+--     sort_order INT NOT NULL DEFAULT 0,
+--     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
 
 -- 答题记录
 CREATE TABLE IF NOT EXISTS quiz_attempts (

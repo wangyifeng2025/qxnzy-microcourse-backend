@@ -1,3 +1,4 @@
+pub mod attempt;
 pub mod auth;
 pub mod chapter;
 pub mod community;
@@ -5,5 +6,6 @@ pub mod course;
 pub mod discover;
 pub mod enrollment;
 pub mod major;
+pub mod question;
 pub mod user;
 pub mod video;

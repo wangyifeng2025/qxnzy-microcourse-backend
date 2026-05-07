@@ -20,7 +20,7 @@ pub struct Course {
     pub vote_count: i64,
 }
 
-/// 门户课程列表行（含所属专业名称，来自 JOIN majors）
+/// 门户与管理端列表行（含 majors.name）
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PublishedCourseRow {
     pub id: Uuid,

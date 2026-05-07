@@ -36,8 +36,11 @@ pub enum TranscodeStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "question_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum QuestionType {
     SingleChoice,
     MultipleChoice,
     TrueFalse,
+    /// 问答题（主观题，需人工评分）
+    Essay,
 }

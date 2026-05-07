@@ -1,0 +1,1131 @@
+### ============================================================
+### 试题库 + 试卷 API 全流程测试
+###
+### 功能架构：
+###   题库（questions）：题目与课程/章节/小节绑定，独立存储，可复用
+###   试卷（quizzes/exams）：从题库组卷，支持自定义分值和排序
+###
+### API 路由：
+###   题库：POST|GET /api/courses/:course_id/questions[/:question_id]
+###   试卷：POST|GET /api/courses/:course_id/exams[/:exam_id[/publish]]
+###   组卷：POST|GET /api/exams/:exam_id/questions[/:entry_id]
+###
+### 认证：Teacher / Admin（路由层强制），写操作 Handler 层校验课程所有权
+### Base：http://localhost:8080
+### ============================================================
+
+@base = http://localhost:8080
+
+# 以下变量在每次 Run 前手动填入（或从对应响应中复制）
+@teacher_token = REPLACE_WITH_TEACHER_JWT
+@course_id     = REPLACE_WITH_COURSE_UUID
+@chapter_id    = REPLACE_WITH_CHAPTER_UUID
+@video_id      = REPLACE_WITH_VIDEO_UUID
+
+# 运行后从响应中填入
+@question_id_1  = REPLACE_AFTER_STEP_2a
+@question_id_2  = REPLACE_AFTER_STEP_2b
+@question_id_3  = REPLACE_AFTER_STEP_2c
+@question_id_4  = REPLACE_AFTER_STEP_2d
+@exam_id        = REPLACE_AFTER_STEP_4
+@entry_id_1     = REPLACE_AFTER_STEP_6a
+@entry_id_2     = REPLACE_AFTER_STEP_6b
+
+
+### ============================================================
+### 步骤 0：登录（使用教师账号）
+### ============================================================
+
+# @name login_teacher
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "teacher01",
+  "password": "123456"
+}
+
+### 预期响应（200 OK）：
+### {
+###   "token": "eyJ...",
+###   "token_type": "Bearer",
+###   "expires_at": 1770000000,
+###   "user": { "id": "uuid", "role": "Teacher", ... }
+### }
+### → 复制 token 填入顶部 @teacher_token
+
+
+### ============================================================
+### 步骤 1：查看课程题库（初始为空）
+### ============================================================
+
+# @name list_questions_empty
+GET {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### []
+
+
+### ============================================================
+### 步骤 2a：向题库添加【单选题】
+### ============================================================
+
+# @name create_single_choice
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": "{{chapter_id}}",
+  "video_id": "{{video_id}}",
+  "question_type": "single_choice",
+  "content": "Rust 中哪个关键字用于声明不可变变量？",
+  "options": [
+    { "key": "A", "text": "var" },
+    { "key": "B", "text": "let" },
+    { "key": "C", "text": "const" },
+    { "key": "D", "text": "mut" }
+  ],
+  "correct_answer": "B",
+  "explanation": "Rust 中 let 声明的变量默认不可变；mut 关键字用于声明可变变量；const 用于编译期常量。",
+  "default_score": 5
+}
+
+### 预期响应（201 Created）：
+### {
+###   "id": "uuid",                   ← 填入 @question_id_1
+###   "course_id": "...",
+###   "chapter_id": "...",
+###   "video_id": "...",
+###   "created_by": "...",
+###   "question_type": "single_choice",
+###   "content": "Rust 中哪个关键字用于声明不可变变量？",
+###   "options": [{"key":"A","text":"var"}, ...],
+###   "correct_answer": "B",
+###   "explanation": "...",
+###   "default_score": "5",
+###   "created_at": "...",
+###   "updated_at": "..."
+### }
+
+
+### ============================================================
+### 步骤 2b：向题库添加【多选题】
+### ============================================================
+
+# @name create_multiple_choice
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": "{{chapter_id}}",
+  "question_type": "multiple_choice",
+  "content": "以下哪些属于 Rust 的所有权规则？（多选）",
+  "options": [
+    { "key": "A", "text": "每个值都有一个所有者" },
+    { "key": "B", "text": "同一时刻可以有多个可变引用" },
+    { "key": "C", "text": "所有者离开作用域时值被丢弃" },
+    { "key": "D", "text": "同一时刻只能有一个所有者" }
+  ],
+  "correct_answer": ["A", "C", "D"],
+  "explanation": "Rust 所有权三条规则：每个值有且仅有一个所有者；同一时刻只有一个所有者；所有者离开作用域时，值被丢弃。同一时刻只能有一个可变引用（B 错误）。",
+  "default_score": 10
+}
+
+### 预期响应（201 Created）：
+### { "id": "uuid", "question_type": "multiple_choice", ... }
+### → 复制 id 填入 @question_id_2
+
+
+### ============================================================
+### 步骤 2c：向题库添加【判断题】
+### ============================================================
+
+# @name create_true_false
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": "{{chapter_id}}",
+  "question_type": "true_false",
+  "content": "Rust 中，不可变引用可以在同一作用域内同时存在多个。",
+  "options": null,
+  "correct_answer": true,
+  "explanation": "Rust 允许同一时刻存在多个不可变引用（共享借用），但不能同时存在可变引用和不可变引用。",
+  "default_score": 5
+}
+
+### 预期响应（201 Created）：
+### { "id": "uuid", "question_type": "true_false", "correct_answer": true, ... }
+### → 复制 id 填入 @question_id_3
+
+
+### ============================================================
+### 步骤 2d：向题库添加【问答题（主观题）】
+### ============================================================
+
+# @name create_essay
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": "{{chapter_id}}",
+  "question_type": "essay",
+  "content": "请用你自己的语言解释 Rust 的借用检查器（Borrow Checker）的作用，并举例说明它如何防止悬垂指针。",
+  "options": null,
+  "correct_answer": null,
+  "explanation": "参考要点：1. 借用检查器在编译期验证引用的有效性；2. 保证引用的生命周期不超过被引用值；3. 防止悬垂引用（dangling reference）；4. 举例：函数返回局部变量的引用会被拒绝编译。",
+  "default_score": 20
+}
+
+### 预期响应（201 Created）：
+### {
+###   "id": "uuid",
+###   "question_type": "essay",
+###   "correct_answer": null,    ← 问答题无标准答案，人工评分
+###   "default_score": "20",
+###   ...
+### }
+### → 复制 id 填入 @question_id_4
+
+
+### ============================================================
+### 步骤 3：按章节筛选题库题目
+### ============================================================
+
+# @name list_questions_by_chapter
+GET {{base}}/api/courses/{{course_id}}/questions?chapter_id={{chapter_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：返回该章节下的所有题目（含 step 2a–2d 创建的 4 道题）
+### [
+###   { "id": "...", "question_type": "single_choice", ... },
+###   { "id": "...", "question_type": "multiple_choice", ... },
+###   { "id": "...", "question_type": "true_false", ... },
+###   { "id": "...", "question_type": "essay", ... }
+### ]
+
+###
+
+# @name list_questions_by_video
+GET {{base}}/api/courses/{{course_id}}/questions?video_id={{video_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：仅返回与该小节绑定的题目（step 2a 那道单选题）
+
+
+### ============================================================
+### 步骤 3b：获取单个题目详情
+### ============================================================
+
+# @name get_question
+GET {{base}}/api/courses/{{course_id}}/questions/{{question_id_1}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "id": "{{question_id_1}}",
+###   "question_type": "single_choice",
+###   "content": "Rust 中哪个关键字用于声明不可变变量？",
+###   ...
+### }
+
+
+### ============================================================
+### 步骤 3c：更新题目（PUT 全字段替换）
+### ============================================================
+
+# @name update_question
+PUT {{base}}/api/courses/{{course_id}}/questions/{{question_id_1}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": "{{chapter_id}}",
+  "video_id": "{{video_id}}",
+  "question_type": "single_choice",
+  "content": "Rust 中哪个关键字用于声明默认不可变的变量？（已更新）",
+  "options": [
+    { "key": "A", "text": "var" },
+    { "key": "B", "text": "let" },
+    { "key": "C", "text": "const" },
+    { "key": "D", "text": "static" }
+  ],
+  "correct_answer": "B",
+  "explanation": "let 声明的变量默认不可变。const 是编译期常量，static 是静态变量。",
+  "default_score": 5
+}
+
+### 预期响应（200 OK）：返回更新后的完整题目对象
+### 注意：PUT 语义，所有字段均需提供；chapter_id/video_id 发 null 会将其清除
+
+###
+
+### 将题目的小节关联清除（chapter_id、video_id 置为 null）
+# @name update_question_clear_video
+PUT {{base}}/api/courses/{{course_id}}/questions/{{question_id_4}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "chapter_id": null,
+  "video_id": null,
+  "question_type": "essay",
+  "content": "请用你自己的语言解释 Rust 的借用检查器（Borrow Checker）的作用，并举例说明它如何防止悬垂指针。",
+  "options": null,
+  "correct_answer": null,
+  "explanation": "参考要点：借用检查器在编译期验证引用有效性，防止悬垂引用。",
+  "default_score": 25
+}
+
+### 预期响应（200 OK）：chapter_id = null, video_id = null, default_score = 25
+
+
+### ============================================================
+### 步骤 4：创建试卷
+### ============================================================
+
+# @name create_exam
+POST {{base}}/api/courses/{{course_id}}/exams
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "course_id": "{{course_id}}",
+  "chapter_id": null,
+  "title": "第一章 Rust 基础知识测试",
+  "description": "涵盖所有权、借用和基础语法的综合测试，满分 40 分，60% 及格。",
+  "time_limit": 30,
+  "total_score": 40,
+  "pass_score": 24,
+  "max_attempts": 3
+}
+
+### 预期响应（201 Created）：
+### {
+###   "id": "uuid",                   ← 填入 @exam_id
+###   "course_id": "...",
+###   "chapter_id": null,
+###   "title": "第一章 Rust 基础知识测试",
+###   "description": "...",
+###   "time_limit": 30,
+###   "total_score": "40",
+###   "pass_score": "24",
+###   "max_attempts": 3,
+###   "is_published": false,
+###   "created_at": "...",
+###   "updated_at": "..."
+### }
+
+
+### ============================================================
+### 步骤 5：查看课程所有试卷
+### ============================================================
+
+# @name list_exams
+GET {{base}}/api/courses/{{course_id}}/exams
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：返回该课程的所有试卷列表（含 step 4 创建的试卷）
+### [
+###   { "id": "...", "title": "第一章 Rust 基础知识测试", "is_published": false, ... }
+### ]
+
+
+### ============================================================
+### 步骤 5b：获取试卷详情（含题目列表，初始为空）
+### ============================================================
+
+# @name get_exam_empty
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "id": "{{exam_id}}",
+###   "title": "第一章 Rust 基础知识测试",
+###   "is_published": false,
+###   "questions": [],            ← 尚未组卷
+###   "computed_total_score": 0,
+###   ...
+### }
+
+
+### ============================================================
+### 步骤 6a：向试卷添加第一道题（单选题，使用默认分值）
+### ============================================================
+
+# @name add_question_1
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "{{question_id_1}}",
+  "sort_order": 1
+}
+
+### 预期响应（201 Created）：
+### {
+###   "entry_id": "uuid",             ← 填入 @entry_id_1
+###   "quiz_id": "{{exam_id}}",
+###   "question_id": "{{question_id_1}}",
+###   "score": null,                  ← null 表示沿用 default_score（5分）
+###   "sort_order": 1,
+###   "question_type": "single_choice",
+###   "content": "Rust 中哪个关键字...",
+###   "options": [...],
+###   "correct_answer": "B",
+###   "default_score": "5",
+###   ...
+### }
+
+
+### ============================================================
+### 步骤 6b：添加第二道题（多选题，自定义分值覆盖默认值）
+### ============================================================
+
+# @name add_question_2
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "{{question_id_2}}",
+  "score": 12,
+  "sort_order": 2
+}
+
+### 预期响应（201 Created）：
+### {
+###   "entry_id": "uuid",             ← 填入 @entry_id_2
+###   "score": "12",                  ← 自定义分值，覆盖 default_score（10分）
+###   "question_type": "multiple_choice",
+###   ...
+### }
+
+
+### ============================================================
+### 步骤 6c：添加判断题（sort_order 3）
+### ============================================================
+
+# @name add_question_3
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "{{question_id_3}}",
+  "sort_order": 3
+}
+
+
+### ============================================================
+### 步骤 6d：添加问答题（sort_order 4）
+### ============================================================
+
+# @name add_question_4
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "{{question_id_4}}",
+  "sort_order": 4
+}
+
+
+### ============================================================
+### 步骤 7：查看试卷组题列表
+### ============================================================
+
+# @name list_exam_questions
+GET {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：按 sort_order 排列的 4 道题
+### [
+###   {
+###     "entry_id": "...",
+###     "quiz_id": "{{exam_id}}",
+###     "question_id": "...",
+###     "score": null,
+###     "sort_order": 1,
+###     "question_type": "single_choice",
+###     "content": "Rust 中哪个关键字...",
+###     "correct_answer": "B",
+###     "default_score": "5",
+###     ...
+###   },
+###   { "sort_order": 2, "question_type": "multiple_choice", "score": "12", ... },
+###   { "sort_order": 3, "question_type": "true_false", ... },
+###   { "sort_order": 4, "question_type": "essay", "correct_answer": null, ... }
+### ]
+
+
+### ============================================================
+### 步骤 7b：查看试卷详情（含实际总分计算）
+### ============================================================
+
+# @name get_exam_with_questions
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "id": "{{exam_id}}",
+###   "total_score": "40",                  ← 设置的名义总分
+###   "is_published": false,
+###   "questions": [...],                   ← 4 道题
+###   "computed_total_score": "42"          ← 实际分值：5 + 12 + 5 + 20 = 42
+### }
+### 注：computed_total_score 与 total_score 不一致时，建议前端给出提示
+
+
+### ============================================================
+### 步骤 8：调整题目分值 / 排序
+### ============================================================
+
+### 将第一道题的分值从默认 5 分改为 8 分
+# @name update_entry_score
+PUT {{base}}/api/exams/{{exam_id}}/questions/{{entry_id_1}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "score": 8,
+  "sort_order": 1
+}
+
+### 预期响应（200 OK）：
+### {
+###   "entry_id": "{{entry_id_1}}",
+###   "score": "8",              ← 由 null 变为 8
+###   "sort_order": 1,
+###   "question_type": "single_choice",
+###   ...
+### }
+
+###
+
+### 仅调整排序（不改分值）
+# @name update_entry_order
+PUT {{base}}/api/exams/{{exam_id}}/questions/{{entry_id_2}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "sort_order": 10
+}
+
+### 预期响应（200 OK）：sort_order 更新为 10，score 保持不变
+
+
+### ============================================================
+### 步骤 9：从试卷中移除一道题（不影响题库原题）
+### ============================================================
+
+# @name remove_question_from_exam
+DELETE {{base}}/api/exams/{{exam_id}}/questions/{{entry_id_2}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应：204 No Content
+### 此后 list_exam_questions 将不再包含该题；题库中 question_id_2 仍然存在
+
+###
+
+### 验证：题库题目依然存在
+# @name verify_question_still_exists
+GET {{base}}/api/courses/{{course_id}}/questions/{{question_id_2}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：题目完整返回（未被删除）
+
+
+### ============================================================
+### 步骤 10：更新试卷基本信息
+### ============================================================
+
+# @name update_exam
+PUT {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "title": "第一章 Rust 基础知识测试（修订版）",
+  "description": "修订说明：调整了部分题目分值，总分更新为 38 分。",
+  "time_limit": 45,
+  "total_score": 38,
+  "pass_score": 23,
+  "max_attempts": null
+}
+
+### 预期响应（200 OK）：返回更新后的试卷信息
+### 注：is_published 字段通过 COALESCE 保持不变（仍为 false）
+
+
+### ============================================================
+### 步骤 11：发布试卷（切换发布状态）
+### ============================================================
+
+# @name publish_exam
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/publish
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "exam_id": "{{exam_id}}",
+###   "is_published": true,
+###   "message": "试卷已发布"
+### }
+
+###
+
+### 再次调用：取消发布（切换）
+# @name unpublish_exam
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/publish
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### {
+###   "exam_id": "{{exam_id}}",
+###   "is_published": false,
+###   "message": "试卷已取消发布"
+### }
+
+
+### ============================================================
+### 步骤 12：重复添加已存在的题目（幂等行为）
+### ============================================================
+
+# @name add_duplicate_question
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "{{question_id_1}}",
+  "score": 10,
+  "sort_order": 99
+}
+
+### 预期响应（201 Created）：
+### ON CONFLICT DO UPDATE → 更新 score 和 sort_order，返回最新状态
+### { "score": "10", "sort_order": 99, ... }
+
+
+### ============================================================
+### 步骤 13：跨课程组卷（权限校验）
+### ============================================================
+
+### 尝试将不属于当前课程的题目加入试卷 → 应返回 400
+# @name cross_course_question_rejected
+POST {{base}}/api/exams/{{exam_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_id": "00000000-0000-0000-0000-000000000000",
+  "sort_order": 1
+}
+
+### 预期响应（404 Not Found）："题目不存在"
+### 或（400 Bad Request）："该题目不属于试卷所在课程，无法加入"
+
+
+### ============================================================
+### 步骤 14：删除题目（会从所有试卷中级联删除 exam_questions 记录）
+### ============================================================
+
+### 先创建一道临时题目
+# @name create_temp_question
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_type": "true_false",
+  "content": "这是一道临时题目，将被删除。",
+  "correct_answer": false,
+  "default_score": 3
+}
+
+###
+
+### 删除该题目
+# @name delete_question
+DELETE {{base}}/api/courses/{{course_id}}/questions/{{question_id_3}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应：204 No Content
+### 若该题已加入任何试卷，ON DELETE CASCADE 会同步删除 exam_questions 中的关联记录
+
+
+### ============================================================
+### 步骤 15：删除整个试卷
+### ============================================================
+
+# @name delete_exam
+DELETE {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应：204 No Content
+### exam_questions 中的组题记录由 ON DELETE CASCADE 自动删除；题库原题不受影响
+
+
+### ============================================================
+### 错误场景测试
+### ============================================================
+
+### 场景 A：创建题目 - 内容为空
+# @name error_empty_content
+POST {{base}}/api/courses/{{course_id}}/questions
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "question_type": "single_choice",
+  "content": "   ",
+  "default_score": 5
+}
+
+### 预期响应（400 Bad Request）："题目内容不能为空"
+
+###
+
+### 场景 B：获取不存在的题目
+# @name error_question_not_found
+GET {{base}}/api/courses/{{course_id}}/questions/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（404 Not Found）："题目不存在"
+
+###
+
+### 场景 C：未登录访问题库
+# @name error_unauthenticated
+GET {{base}}/api/courses/{{course_id}}/questions
+
+### 预期响应（401 Unauthorized）
+
+###
+
+### 场景 D：创建试卷标题为空
+# @name error_empty_exam_title
+POST {{base}}/api/courses/{{course_id}}/exams
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "course_id": "{{course_id}}",
+  "title": "",
+  "total_score": 100
+}
+
+### 预期响应（400 Bad Request）："试卷标题不能为空"
+
+###
+
+### 场景 E：从不存在的试卷中移除题目
+# @name error_exam_not_found
+DELETE {{base}}/api/exams/00000000-0000-0000-0000-000000000000/questions/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（404 Not Found）："试卷不存在"
+
+###
+
+### ============================================================
+### 第六节：题库导出 / 导入（XLSX 格式）
+###
+### Excel 列结构（"题目列表" sheet，第1行为表头，第2行起为数据）：
+###   A: 题目类型      single_choice / multiple_choice / true_false / essay
+###   B: 题目内容      必填，不能为空
+###   C: 选项A        选择题必填，其余题型留空
+###   D: 选项B
+###   E: 选项C
+###   F: 选项D
+###   G: 正确答案      单选: A  多选: A,B,D  判断: TRUE/FALSE  问答: 留空
+###   H: 解析（可选）
+###   I: 默认分值      数字，留空默认 5
+###
+### 说明 sheet："填写说明"（只读参考，导入时可忽略）
+###
+### 导入注意事项：
+###   - 使用 multipart/form-data 上传，字段名为 "file"
+###   - chapter_id / video_id 在导入时始终忽略（置为 null）
+###   - 可直接上传由导出接口下载的 .xlsx 文件
+###   - 每道题独立校验，失败行跳过，其余行正常写入
+### ============================================================
+
+### 6.1 导出课程全部题目（返回 .xlsx 文件下载）
+# @name export_all_questions
+GET {{base}}/api/courses/{{course_id}}/questions/export
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：
+### Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+### Content-Disposition: attachment; filename="questions_XXXXXXXX_YYYYMMDD.xlsx"
+### Body: 二进制 XLSX 文件（包含"题目列表"和"填写说明"两个 Sheet）
+
+###
+
+### 6.2 按章节过滤后导出
+# @name export_chapter_questions
+GET {{base}}/api/courses/{{course_id}}/questions/export?chapter_id={{chapter_id}}
+Authorization: Bearer {{teacher_token}}
+
+### 预期响应（200 OK）：仅包含该章节下的题目的 .xlsx 文件
+
+###
+
+### 6.3 正常批量导入（使用 multipart/form-data 上传 .xlsx 文件）
+###
+### 用法（curl 示例）：
+###   curl -X POST \
+###     -H "Authorization: Bearer $TOKEN" \
+###     -F "file=@questions.xlsx" \
+###     http://localhost:8080/api/courses/{course_id}/questions/import
+###
+### Postman 用法：
+###   Body → form-data → Key: file（类型选 File）→ Value: 选择 .xlsx 文件
+###
+### .http 文件无法直接发送 multipart 二进制，请使用 curl / Postman 测试
+###
+# @name import_questions_xlsx
+# POST {{base}}/api/courses/{{course_id}}/questions/import
+# Authorization: Bearer {{teacher_token}}
+# Content-Type: multipart/form-data; boundary=----FormBoundary
+# (需要在 curl / Postman 中上传 .xlsx 文件)
+
+### 预期响应（200 OK）：
+### {"total":N,"imported":M,"failed":F,"errors":[...]}
+
+###
+
+### 6.4 错误：未提供 file 字段
+###
+### curl -X POST \
+###   -H "Authorization: Bearer $TOKEN" \
+###   -H "Content-Type: multipart/form-data" \
+###   http://localhost:8080/api/courses/{course_id}/questions/import
+###
+### 预期响应（400 Bad Request）：
+### "请通过 multipart/form-data 上传名为 'file' 的 Excel 文件"
+
+###
+
+### 6.5 错误：上传损坏或非 xlsx 文件
+###
+### curl -X POST \
+###   -H "Authorization: Bearer $TOKEN" \
+###   -F "file=@not_an_excel.txt" \
+###   http://localhost:8080/api/courses/{course_id}/questions/import
+###
+### 预期响应（400 Bad Request）：
+### "无法解析 Excel 文件: ..."
+
+###
+
+### 6.6 部分成功（某些行校验失败）的预期返回示例
+###
+### 若上传的 Excel 中第3行题目类型填写了 "unknown_type"，第5行内容为空：
+### 预期响应（200 OK）：
+### {
+###   "total": 5,
+###   "imported": 3,
+###   "failed": 2,
+###   "errors": [
+###     {"index": 2, "message": "第 3 行：无效题目类型 \"unknown_type\"，..."},
+###     {"index": 4, "message": "第 5 行：题目内容（B列）不能为空"}
+###   ]
+### }
+
+###
+
+### 6.7 错误：非课程教师尝试导出
+# @name export_unauthorized
+GET {{base}}/api/courses/{{course_id}}/questions/export
+Authorization: Bearer {{student_token}}
+
+###
+### ============================================================
+### 7. 学生答题全流程测试
+###
+### 前置条件：
+###   - 已有课程 course_id（教师已创建并发布试卷）
+###   - exam_id：已发布的试卷 ID
+###   - student_token：已选课学生的 JWT token
+###   - teacher_token：课程教师的 JWT token
+###   - attempt_id：答题记录 ID（开始答题后获得）
+###
+### 变量约定（在 .env.http 或 IDE 环境变量中配置）：
+###   @base = http://localhost:8080
+###   @course_id = <your-course-uuid>
+###   @exam_id = <your-exam-uuid>
+###   @student_token = <student-jwt>
+###   @teacher_token = <teacher-jwt>
+### ============================================================
+###
+
+### 7.1 学生查看已发布试卷列表（已选课）
+# @name student_list_exams
+GET {{base}}/api/courses/{{course_id}}/exams
+Authorization: Bearer {{student_token}}
+
+### 预期返回：200 OK，只包含 is_published=true 的试卷
+### [
+###   {
+###     "id": "...",
+###     "title": "期中考试",
+###     "is_published": true,
+###     "total_score": 100,
+###     ...
+###   }
+### ]
+
+###
+
+### 7.2 学生查看试卷详情（含题目，correct_answer 为 null）
+# @name student_get_exam
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}
+Authorization: Bearer {{student_token}}
+
+### 预期返回：200 OK
+### {
+###   "exam": { "id": "...", "title": "期中考试", ... },
+###   "questions": [
+###     {
+###       "question_id": "...",
+###       "content": "以下哪个是 Rust 的所有权规则？",
+###       "options": [...],
+###       "correct_answer": null,   <- 学生不可见
+###       "explanation": null,       <- 学生不可见
+###       ...
+###     }
+###   ]
+### }
+
+###
+
+### 7.3 学生开始答题
+# @name start_attempt
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts
+Authorization: Bearer {{student_token}}
+
+### 预期返回：201 Created
+### {
+###   "attempt_id": "<uuid>",   <- 保存此 ID 用于后续提交
+###   "quiz_id": "{{exam_id}}",
+###   "title": "期中考试",
+###   "questions": [
+###     {
+###       "question_id": "...",
+###       "question_type": "single_choice",
+###       "content": "...",
+###       "options": [...],
+###       "score": 10.0
+###     }
+###   ]
+### }
+###
+### 注意：将响应中的 attempt_id 设置到变量 @attempt_id
+
+###
+
+### 7.4 学生提交答案（自动评分客观题，问答题记 null 等待批改）
+# @name submit_attempt
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}/submit
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "answers": {
+    "<single_choice_question_id>": "A",
+    "<multiple_choice_question_id>": ["A", "C"],
+    "<true_false_question_id>": true,
+    "<essay_question_id>": "我认为Rust通过所有权系统实现内存安全，无需垃圾回收..."
+  },
+  "time_spent": 1800
+}
+
+### 预期返回（有问答题时）：200 OK
+### {
+###   "id": "{{attempt_id}}",
+###   "score": 60.0,         <- 客观题自动得分（问答题待批）
+###   "is_graded": false,    <- 有问答题未批改
+###   "submitted_at": "...",
+###   ...
+### }
+###
+### 预期返回（全客观题时）：200 OK
+### {
+###   "score": 80.0,
+###   "is_graded": true,
+###   ...
+### }
+
+###
+
+### 7.5 学生查看自己的答题历史
+# @name get_my_attempts
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/my
+Authorization: Bearer {{student_token}}
+
+### 预期返回：200 OK，该学生在该试卷的所有历史记录
+### [
+###   {
+###     "id": "...",
+###     "score": 60.0,
+###     "is_graded": false,
+###     "submitted_at": "...",
+###     ...
+###   }
+### ]
+
+###
+
+### 7.6 学生查看答题详情（提交后可见评分和解析）
+# @name get_attempt_detail_student
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}
+Authorization: Bearer {{student_token}}
+
+### 预期返回：200 OK
+### {
+###   "id": "{{attempt_id}}",
+###   "score": 60.0,
+###   "questions": [
+###     {
+###       "question_id": "...",
+###       "question_type": "single_choice",
+###       "student_answer": "A",
+###       "earned_score": 10.0,
+###       "is_correct": true,
+###       "correct_answer": "A",      <- 提交后可见
+###       "explanation": "A选项正确，因为..."  <- 提交后可见
+###     },
+###     {
+###       "question_type": "essay",
+###       "student_answer": "我认为...",
+###       "earned_score": null,        <- 问答题待批改
+###       "is_correct": null,
+###       "correct_answer": null
+###     }
+###   ]
+### }
+
+###
+
+### 7.7 教师查看所有学生的答题列表
+# @name teacher_list_all_attempts
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts
+Authorization: Bearer {{teacher_token}}
+
+### 预期返回：200 OK，所有学生的答题记录列表
+
+###
+
+### 7.8 教师批改问答题（更新每题得分并重算总分）
+# @name grade_essay
+PUT {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}/grade
+Authorization: Bearer {{teacher_token}}
+Content-Type: application/json
+
+{
+  "essay_scores": {
+    "<essay_question_id>": 25.5
+  }
+}
+
+### 预期返回：200 OK
+### {
+###   "id": "{{attempt_id}}",
+###   "score": 85.5,          <- 客观题得分 + 问答题得分
+###   "is_graded": true,      <- 全部批改完成
+###   "question_scores": {
+###     "<single_choice_id>": 10.0,
+###     "<essay_question_id>": 25.5   <- 已更新
+###   }
+### }
+
+###
+
+### 7.9 学生再次查看（批改后可见完整评分）
+# @name get_attempt_detail_after_grading
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}
+Authorization: Bearer {{student_token}}
+
+### 预期返回：200 OK，所有题的 earned_score 均非 null，is_graded=true
+
+###
+
+### ---- 边界/错误场景 ----
+
+### 7.10 错误：未选课学生尝试查看试卷列表
+# @name unenrolled_list_exams
+GET {{base}}/api/courses/{{course_id}}/exams
+Authorization: Bearer {{unenrolled_student_token}}
+
+### 预期：403 Forbidden "请先选课才能查看测试"
+
+###
+
+### 7.11 错误：学生尝试查看未发布试卷
+# @name student_view_unpublished_exam
+GET {{base}}/api/courses/{{course_id}}/exams/{{unpublished_exam_id}}
+Authorization: Bearer {{student_token}}
+
+### 预期：404 Not Found "试卷不存在或尚未发布"
+
+###
+
+### 7.12 错误：重复提交同一次答题
+# @name submit_already_submitted
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}/submit
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "answers": {"<question_id>": "A"},
+  "time_spent": 100
+}
+
+### 预期：400 Bad Request "该答题记录已提交，不能重复提交"
+
+###
+
+### 7.13 错误：超过最大答题次数后再次开始
+# @name exceed_max_attempts
+POST {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts
+Authorization: Bearer {{student_token}}
+
+### 预期：400 Bad Request "已达最大答题次数限制（N 次），无法再次作答"
+
+###
+
+### 7.14 错误：学生尝试批改（无权限）
+# @name student_grade_attempt
+PUT {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{attempt_id}}/grade
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "essay_scores": {"<essay_question_id>": 20.0}
+}
+
+### 预期：403 Forbidden "仅教师或管理员可批改问答题"
+
+###
+
+### 7.15 错误：学生尝试查看他人答题详情
+# @name student_view_other_attempt
+GET {{base}}/api/courses/{{course_id}}/exams/{{exam_id}}/attempts/{{other_student_attempt_id}}
+Authorization: Bearer {{student_token}}
+
+### 预期：403 Forbidden "无权查看他人的答题记录"
+
+### 预期响应（403 Forbidden）："仅课程教师或管理员可操作"

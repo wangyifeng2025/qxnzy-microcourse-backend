@@ -108,25 +108,27 @@ pub async fn major_name_for_major_id(
         .await
 }
 
-/// 课程管理列表：`teacher_filter = None` 时管理员看全站；`Some(teacher_id)` 时仅该教师课程（含草稿/归档）
+/// 课程管理列表：`teacher_filter = None` 时管理员看全站；`Some(teacher_id)` 时仅该教师课程（含草稿/归档）；LEFT JOIN majors 取专业名
 pub async fn find_all_managed(
     pool: &PgPool,
     query: &PageQuery,
     teacher_filter: Option<Uuid>,
-) -> Result<PagedList<Course>, sqlx::Error> {
+) -> Result<PagedList<PublishedCourseRow>, sqlx::Error> {
     let page_size = query.page_size();
     let fetch_limit = page_size + 1;
 
     let mut items = match (query.cursor_created_at, query.cursor_id) {
         (Some(cursor_created_at), Some(cursor_id)) => {
-            sqlx::query_as::<_, Course>(
+            sqlx::query_as::<_, PublishedCourseRow>(
                 r#"
                 SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,
                        c.teacher_id, u.real_name AS teacher_name,
                        c.status, c.created_at, c.updated_at,
-                       c.vote_count
+                       c.vote_count,
+                       m.name AS major_name
                 FROM courses c
                 LEFT JOIN users u ON u.id = c.teacher_id
+                LEFT JOIN majors m ON m.id = c.major_id
                 WHERE ($4::uuid IS NULL OR c.teacher_id = $4)
                   AND (c.created_at, c.id) < ($1, $2)
                 ORDER BY c.created_at DESC, c.id DESC
@@ -141,14 +143,16 @@ pub async fn find_all_managed(
             .await?
         }
         _ => {
-            sqlx::query_as::<_, Course>(
+            sqlx::query_as::<_, PublishedCourseRow>(
                 r#"
                 SELECT c.id, c.title, c.description, c.cover_image_url, c.major_id,
                        c.teacher_id, u.real_name AS teacher_name,
                        c.status, c.created_at, c.updated_at,
-                       c.vote_count
+                       c.vote_count,
+                       m.name AS major_name
                 FROM courses c
                 LEFT JOIN users u ON u.id = c.teacher_id
+                LEFT JOIN majors m ON m.id = c.major_id
                 WHERE ($2::uuid IS NULL OR c.teacher_id = $2)
                 ORDER BY c.created_at DESC, c.id DESC
                 LIMIT $1

@@ -181,8 +181,9 @@ pub async fn list_courses_manage(
         .await
         .map_err(internal_error)?;
     let mut items = Vec::with_capacity(result.items.len());
-    for c in result.items {
-        items.push(course_to_response(c, &storage, false, None).await);
+    for row in result.items {
+        let (c, major_name) = row.into_course_and_major();
+        items.push(course_to_response(c, &storage, false, major_name).await);
     }
     Ok(Json(PagedList {
         page_size: result.page_size,

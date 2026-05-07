@@ -47,6 +47,20 @@ use handlers::video::{
     confirm_upload, create_hls_url, create_video, delete_video, get_transcodes, get_video,
     hls_playlist, hls_segment, list_videos, request_upload_url, update_video,
 };
+use handlers::attempt::{
+    start_attempt, submit_attempt, get_my_attempts, get_attempt_detail,
+    list_all_attempts, grade_attempt,
+};
+use handlers::question::{
+    // 题库管理
+    list_questions, create_question, get_question, update_question, delete_question,
+    // 题库导入/导出
+    export_questions, import_questions,
+    // 试卷管理
+    list_exams, create_exam, get_exam, update_exam, delete_exam, toggle_exam_publish,
+    // 试卷组题
+    list_exam_questions, add_question_to_exam, update_question_in_exam, remove_question_from_exam,
+};
 use middleware::auth::{AllowedRoles, auth_middleware, require_roles_middleware};
 use models::enums::UserRole;
 use storage::AppStorage;
@@ -217,12 +231,71 @@ async fn main() {
         )
         .route_layer(auth_layer.clone());
 
+    // 题库 + 试卷管理路由（写操作）：仅 Teacher/Admin
+    let question_bank_routes = Router::new()
+        // 题库导出/导入（字面量路径须在 /{question_id} 之前注册，Axum 按注册顺序匹配）
+        .route("/{course_id}/questions/export", get(export_questions))
+        .route("/{course_id}/questions/import", post(import_questions))
+        // 题库 CRUD
+        .route("/{course_id}/questions", get(list_questions).post(create_question))
+        .route(
+            "/{course_id}/questions/{question_id}",
+            get(get_question).put(update_question).delete(delete_question),
+        )
+        // 试卷写操作（POST/PUT/DELETE）
+        .route("/{course_id}/exams", post(create_exam))
+        .route(
+            "/{course_id}/exams/{exam_id}",
+            put(update_exam).delete(delete_exam),
+        )
+        .route("/{course_id}/exams/{exam_id}/publish", post(toggle_exam_publish))
+        .route_layer(from_fn(require_roles_middleware))
+        .route_layer(Extension(AllowedRoles::new([
+            UserRole::Teacher,
+            UserRole::Admin,
+        ])))
+        .route_layer(auth_layer.clone());
+
+    // 试卷读取路由：已登录用户可访问（handler 内区分教师/学生权限）
+    let exam_read_routes = Router::new()
+        .route("/{course_id}/exams", get(list_exams))
+        .route("/{course_id}/exams/{exam_id}", get(get_exam))
+        .route_layer(auth_layer.clone());
+
+    // 答题路由：已登录用户（handler 内校验选课状态 / 教师权限）
+    // "my" 字面量路径必须在 /{attempt_id} 之前注册
+    let attempt_routes = Router::new()
+        .route(
+            "/{course_id}/exams/{exam_id}/attempts/my",
+            get(get_my_attempts),
+        )
+        .route(
+            "/{course_id}/exams/{exam_id}/attempts",
+            get(list_all_attempts).post(start_attempt),
+        )
+        .route(
+            "/{course_id}/exams/{exam_id}/attempts/{attempt_id}",
+            get(get_attempt_detail),
+        )
+        .route(
+            "/{course_id}/exams/{exam_id}/attempts/{attempt_id}/submit",
+            post(submit_attempt),
+        )
+        .route(
+            "/{course_id}/exams/{exam_id}/attempts/{attempt_id}/grade",
+            put(grade_attempt),
+        )
+        .route_layer(auth_layer.clone());
+
     let course_routes = Router::new()
         .merge(course_manage_routes)
         .merge(public_course_routes)
         .merge(teacher_course_routes)
         .merge(enrollment_routes)
-        .merge(community_routes);
+        .merge(community_routes)
+        .merge(question_bank_routes)
+        .merge(exam_read_routes)
+        .merge(attempt_routes);
 
     // 独立社区话题路由（不依附课程，挂载在 /api/community 下）
     // 话题列表和详情：任意已登录用户可访问
@@ -319,6 +392,20 @@ async fn main() {
         .route("/active-teachers", get(active_teachers))
         .route("/latest-topics", get(latest_topics));
 
+    // 试卷组题路由（通过 /api/exams 前缀访问，与课程解耦）：仅 Teacher/Admin
+    let exam_composition_routes = Router::new()
+        .route("/{exam_id}/questions", get(list_exam_questions).post(add_question_to_exam))
+        .route(
+            "/{exam_id}/questions/{entry_id}",
+            put(update_question_in_exam).delete(remove_question_from_exam),
+        )
+        .route_layer(from_fn(require_roles_middleware))
+        .route_layer(Extension(AllowedRoles::new([
+            UserRole::Teacher,
+            UserRole::Admin,
+        ])))
+        .route_layer(auth_layer.clone());
+
     let app = Router::new()
         .route("/", get(|| async { "QXNZY 微课平台后端服务运行中" }))
         .nest("/api/auth", public_auth_routes)
@@ -333,6 +420,8 @@ async fn main() {
             "/api/chapters",
             public_chapter_video_routes.merge(teacher_chapter_video_routes),
         )
+        // 题库 + 试卷路由
+        .nest("/api/exams", exam_composition_routes)
         // State 必须在 Extension 之前完成；Extension 放在 with_state 之后，否则列表等 handler 取不到 MinIO 客户端（会 500）
         .with_state(pool)
         .layer(Extension(storage));
